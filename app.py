@@ -1495,8 +1495,8 @@ def quick_recos(metric_key: str, direction: str):
     return actions_for(metric_key, direction)
 
 def render_ai():
-    st.markdown(f'<p style="font-family:\'Plus Jakarta Sans\',sans-serif;font-size:1.3rem;font-weight:700;color:{TEXT};margin:0 0 .2rem;">Ask your data anything</p>', unsafe_allow_html=True)
-    st.markdown(f'<p style="color:{MUTED};font-size:.88rem;margin:.0rem 0 .9rem;">Instant answers from your live marketing data.</p>', unsafe_allow_html=True)
+    st.markdown(f"""<p style="font-family:'Plus Jakarta Sans',sans-serif;font-size:1.3rem;font-weight:700;color:{TEXT};margin:0 0 .2rem;">Ask your data anything</p>""", unsafe_allow_html=True)
+    st.markdown(f"""<p style="color:{MUTED};font-size:.88rem;margin:.0rem 0 .9rem;">Instant answers from your live marketing data.</p>""", unsafe_allow_html=True)
 
     if "ai_history" not in st.session_state:
         st.session_state.ai_history = []
