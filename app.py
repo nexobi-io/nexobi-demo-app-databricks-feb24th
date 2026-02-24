@@ -1127,7 +1127,7 @@ def render_marketing():
     jd["ROAS"]=jd["ROAS"].apply(lambda x: f"{x:.2f}x")
     st.dataframe(df_light(jd), use_container_width=True, hide_index=True, height=df_height(len(jd)))
 
-    with st.expander("Top Campaigns", expanded=True):
+    with st.expander("Top Campaigns", expanded=False):
         camps = base[base["campaign"].astype(str).str.strip().ne("")].groupby("campaign", as_index=False).agg(
             Revenue=("total_revenue","sum"),
             Spend=("total_cost","sum"),
