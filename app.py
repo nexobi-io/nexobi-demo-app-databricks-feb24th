@@ -23,8 +23,9 @@ DBX_SCHEMA  = os.getenv("NEXOBI_SCHEMA",  "silver")
 DBX_TABLE   = os.getenv("NEXOBI_TABLE",   "DemoData-marketing-crm")
 
 # Databricks SQL Warehouse connection (used as fallback when SparkSession unavailable)
-DATABRICKS_HOST      = os.getenv("DATABRICKS_HOST",      "dbc-51730115-505d.cloud.databricks.com")
-DATABRICKS_HTTP_PATH = os.getenv("DATABRICKS_HTTP_PATH", "/sql/1.0/warehouses/b3342784cd85850e")
+# Values must be set as environment variables — never hardcoded here.
+DATABRICKS_HOST      = os.getenv("DATABRICKS_HOST",      "")
+DATABRICKS_HTTP_PATH = os.getenv("DATABRICKS_HTTP_PATH", "")
 
 # ==========================================================
 # THEME TOKENS
