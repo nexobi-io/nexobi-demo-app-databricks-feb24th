@@ -1531,51 +1531,8 @@ def _build_data_context() -> str:
         return "Healthcare practice marketing analytics data"
 
 
-_ENDPOINT_CACHE: dict = {}
-
-# Preferred endpoint names in order of preference
-_CANDIDATE_ENDPOINTS = [
-    "databricks-llama-4-maverick",
-    "databricks-meta-llama-3-1-405b-instruct",
-    "databricks-meta-llama-3-3-70b-instruct",
-    "databricks-meta-llama-3-1-70b-instruct",
-    "databricks-gpt-oss-120b",
-    "databricks-meta-llama-3-1-8b-instruct",
-    "databricks-dbrx-instruct",
-    "databricks-mixtral-8x7b-instruct",
-]
-
-
-def _get_model_endpoint() -> str:
-    """Return the first available Foundation Model endpoint in this workspace."""
-    if _ENDPOINT_CACHE.get("name"):
-        return _ENDPOINT_CACHE["name"]
-
-    token = os.environ.get("DATABRICKS_TOKEN", "")
-    host  = DATABRICKS_HOST.strip().rstrip("/")
-    hdrs  = {"Authorization": f"Bearer {token}"}
-
-    try:
-        resp = requests.get(
-            f"https://{host}/api/2.0/serving-endpoints",
-            headers=hdrs, timeout=10
-        )
-        if resp.status_code == 200:
-            names = {e["name"] for e in resp.json().get("endpoints", [])}
-            for candidate in _CANDIDATE_ENDPOINTS:
-                if candidate in names:
-                    _ENDPOINT_CACHE["name"] = candidate
-                    return candidate
-            # Fall back to first instruct/chat endpoint found
-            for n in names:
-                if any(k in n.lower() for k in ("instruct", "chat", "llama", "dbrx", "mixtral")):
-                    _ENDPOINT_CACHE["name"] = n
-                    return n
-    except Exception:
-        pass
-
-    # Hard fallback — most common Databricks-provided endpoint
-    return "databricks-meta-llama-3-1-70b-instruct"
+# Model endpoint confirmed available in this workspace
+_MODEL_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
 
 
 def ai_query_ask(question: str) -> dict:
@@ -1585,7 +1542,7 @@ def ai_query_ask(question: str) -> dict:
     """
     from databricks import sql as _dbsql
 
-    endpoint = _get_model_endpoint()
+    endpoint = _MODEL_ENDPOINT
     context  = _build_data_context()
     prompt = (
         "You are a concise marketing analytics assistant for a healthcare practice. "
