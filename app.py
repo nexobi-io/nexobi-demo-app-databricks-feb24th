@@ -1521,7 +1521,7 @@ def render_ai():
     )
 
     # Presets + Ask + Clear in one row below input
-    st.markdown(‘<div class="ai-presets">’, unsafe_allow_html=True)
+    st.markdown("<div class=\"ai-presets\">", unsafe_allow_html=True)
     _pr1, _pr2, _pr3, _askcol, _clearcol = st.columns([2.4, 2.4, 2.4, 1.6, 1.1])
     for col, p in zip([_pr1, _pr2, _pr3], presets):
         with col:
@@ -1532,8 +1532,8 @@ def render_ai():
         ask = st.button("Ask", use_container_width=True, key="ai_ask")
     with _clearcol:
         reset = st.button("Clear", use_container_width=True, key="ai_reset", type="secondary")
-    st.markdown(‘</div>’, unsafe_allow_html=True)
-    st.markdown(‘<div class="ai-row-spacer"></div>’, unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("<div class=\"ai-row-spacer\"></div>", unsafe_allow_html=True)
 
     if reset:
         st.session_state.ai_history = []
