@@ -534,6 +534,21 @@ with st.sidebar:
     # --------------------------------------------------
     if "demo_scenario" not in st.session_state:
         st.session_state["demo_scenario"] = "None"
+    if "dismiss_quick" not in st.session_state:
+        st.session_state["dismiss_quick"] = False
+
+    # --------------------------------------------------
+    # Reset flag — must be checked BEFORE widgets render
+    # so Streamlit allows overwriting widget-bound keys
+    # --------------------------------------------------
+    if st.session_state.pop("_reset_filters", False):
+        st.session_state["f_start"]   = MIN_DATE
+        st.session_state["f_end"]     = MAX_DATE
+        st.session_state["f_sources"] = ["All"]
+        st.session_state["f_channel"] = "All"
+        st.session_state["f_campaign"] = "All"
+
+    # Init filter keys only if not already set
     if "f_start" not in st.session_state:
         st.session_state["f_start"] = MIN_DATE
     if "f_end" not in st.session_state:
@@ -544,8 +559,6 @@ with st.sidebar:
         st.session_state["f_channel"] = "All"
     if "f_campaign" not in st.session_state:
         st.session_state["f_campaign"] = "All"
-    if "dismiss_quick" not in st.session_state:
-        st.session_state["dismiss_quick"] = False
 
     d1, d2 = st.columns(2)
     with d1:
@@ -568,18 +581,12 @@ with st.sidebar:
         campaign = st.selectbox("Campaign", camp_opts, index=(camp_opts.index(st.session_state["f_campaign"]) if st.session_state["f_campaign"] in camp_opts else 0), key="f_campaign")
 
     # --------------------------------------------------
-    # Reset filters button — subtle, before Alerts
+    # Reset filters — sets flag, reruns, flag clears
+    # values BEFORE widgets render on next run
     # --------------------------------------------------
-    def _reset_filters():
-        st.session_state["f_start"]   = MIN_DATE
-        st.session_state["f_end"]     = MAX_DATE
-        st.session_state["f_sources"] = ["All"]
-        st.session_state["f_channel"] = "All"
-        st.session_state["f_campaign"] = "All"
-
     st.markdown('<div class="sb-reset-wrap">', unsafe_allow_html=True)
     if st.button("Reset filters", use_container_width=True, key="reset_filters"):
-        _reset_filters()
+        st.session_state["_reset_filters"] = True
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
