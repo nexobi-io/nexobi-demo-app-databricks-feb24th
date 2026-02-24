@@ -425,10 +425,13 @@ section[data-testid="stSidebar"] .stButton>button:hover{background:#E6F9F0!impor
 .reset-wrap .stButton>button{background:#F5F7FA!important;color:#64748B!important;border:1px solid #E2E8F0!important;font-weight:500!important;}
 .reset-wrap .stButton>button:hover{background:#F1F5F9!important;}
 
-/* Export icon buttons */
-.export-icons{display:flex;gap:6px;margin:.4rem 0 .6rem;}
-.export-icons [data-testid="stDownloadButton"]>button{background:transparent!important;border:1px solid #E2E8F0!important;border-radius:8px!important;color:#64748B!important;font-size:.75rem!important;font-weight:500!important;padding:4px 10px!important;min-height:0!important;height:28px!important;line-height:1!important;}
-.export-icons [data-testid="stDownloadButton"]>button:hover{border-color:#00C06B!important;color:#00C06B!important;background:transparent!important;}
+/* Export icon buttons — all sidebar download buttons */
+[data-testid="stSidebar"] [data-testid="stDownloadButton"]>button{background:transparent!important;border:1px solid #E2E8F0!important;border-radius:8px!important;color:#64748B!important;font-size:.75rem!important;font-weight:500!important;padding:3px 10px!important;min-height:0!important;height:26px!important;line-height:1!important;width:auto!important;}
+[data-testid="stSidebar"] [data-testid="stDownloadButton"]>button:hover{border-color:#00C06B!important;color:#00C06B!important;background:transparent!important;}
+
+/* Refresh button — subtle green, compact */
+.refresh-wrap .stButton>button{background:transparent!important;border:1px solid #00C06B!important;border-radius:8px!important;color:#00C06B!important;font-size:.75rem!important;font-weight:500!important;padding:3px 10px!important;min-height:0!important;height:26px!important;width:auto!important;}
+.refresh-wrap .stButton>button:hover{background:#E6F9F0!important;}
 
 /* AI answer cards — minimal genie style */
 .ai-answer{background:#FAFBFC;border:1px solid #EEF2F7;border-radius:14px;padding:16px 18px;margin:.5rem 0;box-shadow:none;}
@@ -538,6 +541,13 @@ with st.sidebar:
     # --- Navigation ---
     page = st.radio("Navigation", ["Dashboard", "AI Agent"], key="nav")
 
+    # --- Export icons (top of sidebar, filled after data loads) ---
+    _exp_row = st.columns([1, 1, 3])
+    with _exp_row[0]:
+        _export_csv_slot = st.empty()
+    with _exp_row[1]:
+        _export_pdf_slot = st.empty()
+
     st.markdown("---")
     # --------------------------------------------------
     # State init (kept here for stability)
@@ -607,24 +617,15 @@ with st.sidebar:
         _alerts_slot = st.empty()
 
     # --------------------------------------------------
-    # Export — two small icon buttons (CSV + PDF)
-    # --------------------------------------------------
-    st.markdown('<div class="export-icons">', unsafe_allow_html=True)
-    _ecol_csv, _ecol_pdf, _ = st.columns([1, 1, 3])
-    with _ecol_csv:
-        _export_csv_slot = st.empty()
-    with _ecol_pdf:
-        _export_pdf_slot = st.empty()
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    # --------------------------------------------------
     # Refresh button — bottom of sidebar (Databricks only)
     # --------------------------------------------------
     if _DBX_MODE:
-        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-        if st.button("Refresh Data", use_container_width=True, key="refresh_data"):
+        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        st.markdown('<div class="refresh-wrap">', unsafe_allow_html=True)
+        if st.button("↺ Refresh", key="refresh_data"):
             load_data_databricks.clear()
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
 def apply_filters(df: pd.DataFrame, s: date, e: date, srcs, ch: str, camp: str) -> pd.DataFrame:
     out = df[(df["date"] >= s) & (df["date"] <= e)].copy()
