@@ -986,14 +986,12 @@ def render_signals(alerts_list, max_signals: int = 3):
 # PATIENT ACQUISITION FUNNEL
 # ==========================================================
 def plot_patient_funnel(df: pd.DataFrame):
-    """Full patient acquisition funnel: Sessions → Leads → Booked → Attended."""
-    sessions = max(float(df["sessions"].sum() or 0), 0)
+    """Patient acquisition funnel: Leads → Booked → Attended."""
     leads    = max(float(df["leads"].sum() or 0), 0)
     booked   = max(float(df["booked"].sum() or 0), 0)
     attended = max(float(df["attended"].sum() or 0), 0)
 
     pairs = [
-        ("Sessions", sessions, BLUE),
         ("Leads",    leads,    AMBER),
         ("Booked",   booked,   GREEN),
         ("Attended", attended, GREEN_DK),
@@ -1010,7 +1008,7 @@ def plot_patient_funnel(df: pd.DataFrame):
         textinfo="value+percent initial",
         marker=dict(color=list(colors), line=dict(width=0)),
         connector=dict(line=dict(color=BORDER, width=1.5), fillcolor=SOFT),
-        hovertemplate="%{y}<br><b>%{x:,.0f}</b><br>%{percentInitial:.1%} of sessions<extra></extra>",
+        hovertemplate="%{y}<br><b>%{x:,.0f}</b><br>%{percentInitial:.1%} of leads<extra></extra>",
     ))
     fig.update_layout(
         paper_bgcolor=PANEL,
@@ -1049,14 +1047,12 @@ def render_marketing():
     rev_chg = safe_div(revenue - prev_rev, max(abs(prev_rev), 0.01)) * 100
     lds_chg = safe_div(leads - prev_leads, max(abs(prev_leads), 0.01)) * 100
 
-    render_story_cards()
     st.markdown('<div class="section-title">Performance Overview</div>', unsafe_allow_html=True)
-    for col,(label,value,meta) in zip(st.columns(5),[
+    for col,(label,value,meta) in zip(st.columns(4),[
         ("Revenue", money(revenue), delta_html(rev_chg, has_prev)),
         ("Ad Spend", money(spend), f'<span style="color:{MUTED};font-size:.8rem;">Total investment</span>'),
         ("ROAS", f"{roas:.2f}x", f'<span style="color:{MUTED};font-size:.8rem;">Return on ad spend</span>'),
         ("Leads", fmt(leads), delta_html(lds_chg, has_prev)),
-        ("Show Rate", pct(show_rate), f'<span style="color:{MUTED};font-size:.8rem;">{fmt(attended)}/{fmt(booked)} booked</span>'),
     ]):
         with col:
             st.markdown(f'''
@@ -1068,6 +1064,7 @@ def render_marketing():
             ''', unsafe_allow_html=True)
 
     render_signals(_alerts, max_signals=3)
+    render_story_cards()
     _tab_src, _tab_trend, _tab_funnel = st.tabs(["By Source", "Trends", "Patient Funnel"])
 
     with _tab_src:
@@ -1118,27 +1115,25 @@ def render_marketing():
                 st.plotly_chart(f_fig, use_container_width=True, config={"displayModeBar": False})
                 st.markdown('</div>', unsafe_allow_html=True)
             with _fc2:
-                _sess  = max(float(base["sessions"].sum() or 0), 1)
-                _leads = float(base["leads"].sum() or 0)
+                _leads = max(float(base["leads"].sum() or 0), 1)
                 _book  = float(base["booked"].sum() or 0)
                 _att   = float(base["attended"].sum() or 0)
                 _fdf   = pd.DataFrame([
-                    {"Stage": "Sessions",   "Count": fmt(_sess),  "Conv. Rate": "100%"},
-                    {"Stage": "→ Leads",    "Count": fmt(_leads), "Conv. Rate": f"{_leads/_sess*100:.1f}%" if _sess else "—"},
-                    {"Stage": "→ Booked",   "Count": fmt(_book),  "Conv. Rate": f"{_book/max(_leads,1)*100:.1f}%"},
+                    {"Stage": "Leads",      "Count": fmt(_leads), "Conv. Rate": "100%"},
+                    {"Stage": "→ Booked",   "Count": fmt(_book),  "Conv. Rate": f"{_book/_leads*100:.1f}%"},
                     {"Stage": "→ Attended", "Count": fmt(_att),   "Conv. Rate": f"{_att/max(_book,1)*100:.1f}%"},
                 ])
                 st.markdown('<div class="chart-card" style="margin-top:0;">', unsafe_allow_html=True)
                 st.markdown('<div style="font-size:.78rem;font-weight:700;color:#0F172A;margin-bottom:8px;">Stage Conversion Rates</div>', unsafe_allow_html=True)
-                st.dataframe(df_light(_fdf), use_container_width=True, hide_index=True, height=df_height(4))
-                # Drop-off callouts
-                total_drop = max(0.0, _sess - _att)
-                drop_pct   = total_drop / _sess * 100 if _sess > 0 else 0.0
+                st.dataframe(df_light(_fdf), use_container_width=True, hide_index=True, height=df_height(3))
+                # Drop-off callout
+                total_drop = max(0.0, _leads - _att)
+                drop_pct   = total_drop / _leads * 100 if _leads > 0 else 0.0
                 st.markdown(
                     f'<div style="margin-top:10px;padding:8px 10px;background:#FFF7ED;border-radius:8px;border-left:3px solid {AMBER};">'
-                    f'<div style="font-size:.72rem;font-weight:700;color:#92400E;">Overall drop-off</div>'
+                    f'<div style="font-size:.72rem;font-weight:700;color:#92400E;">Leads never attended</div>'
                     f'<div style="font-size:1.1rem;font-weight:900;color:#0F172A;">{pct(drop_pct)}</div>'
-                    f'<div style="font-size:.71rem;color:{MUTED};">{fmt(total_drop)} visitors never attended</div>'
+                    f'<div style="font-size:.71rem;color:{MUTED};">{fmt(total_drop)} leads lost in funnel</div>'
                     f'</div>',
                     unsafe_allow_html=True
                 )
@@ -1891,13 +1886,13 @@ if scn_active and scn_active != "None":
     if meta:
         st.markdown(
             f"""
-            <div style="background:{GREEN_LT};border:1px solid rgba(0,0,0,.06);border-left:5px solid {GREEN};border-radius:14px;padding:12px 14px;margin:6px 0 12px;">
-              <div style="font-weight:900;letter-spacing:.2px;margin-bottom:4px;">{meta['title']}</div>
-              <div style="color:{MUTED};font-size:.92rem;margin-bottom:8px;">
-                <b>What to look at:</b> {' · '.join(meta['look'])}
+            <div style="background:{GREEN_LT};border:1px solid rgba(0,192,107,.2);border-left:5px solid {GREEN};border-radius:14px;padding:12px 16px;margin:6px 0 12px;">
+              <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:.82rem;font-weight:800;color:#52796F;letter-spacing:.08em;text-transform:uppercase;margin-bottom:6px;">{meta['title']}</div>
+              <div style="font-size:.82rem;color:#64748B;margin-bottom:5px;line-height:1.5;">
+                <span style="font-weight:700;color:#52796F;">What to look at:</span>&nbsp; {' &middot; '.join(meta['look'])}
               </div>
-              <div style="font-size:.92rem;">
-                <b>Great AI questions:</b> {' · '.join(meta['qs'])}
+              <div style="font-size:.82rem;color:#64748B;line-height:1.5;">
+                <span style="font-weight:700;color:#52796F;">AI questions:</span>&nbsp; {' &middot; '.join(meta['qs'])}
               </div>
             </div>
             """,
