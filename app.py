@@ -2003,6 +2003,180 @@ def _build_data_context() -> str:
 _MODEL_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
 
 
+def ai_query_csv(question: str) -> dict:
+    """Answer questions directly from the loaded CSV — no Databricks needed."""
+    q   = question.lower()
+    df  = DATA.copy()
+    df["date"] = pd.to_datetime(df["date"])
+    today = pd.to_datetime(MAX_DATE)
+
+    # ── Time range ────────────────────────────────────────────
+    if any(x in q for x in ["last 7", "past 7", "last week", "7 day"]):
+        days, plabel = 7, "last 7 days"
+    elif any(x in q for x in ["last 90", "quarter", "3 month", "90 day"]):
+        days, plabel = 90, "last 90 days"
+    else:
+        days, plabel = 30, "last 30 days"
+
+    cutoff  = today - pd.Timedelta(days=days)
+    d       = df[df["date"] >= cutoff]
+    prior_d = df[(df["date"] >= cutoff - pd.Timedelta(days=days)) & (df["date"] < cutoff)]
+
+    def _s(frame, col):
+        return float(frame[col].sum()) if col in frame.columns else 0.0
+
+    rev    = _s(d, "total_revenue");  p_rev  = _s(prior_d, "total_revenue")
+    cost   = _s(d, "total_cost");     p_cost = _s(prior_d, "total_cost")
+    leads  = _s(d, "leads");          p_leads= _s(prior_d, "leads")
+    booked = _s(d, "booked")
+    att    = _s(d, "attended")
+    roas   = rev  / max(cost,  0.01)
+    cpl    = cost / max(leads, 1)
+    show   = att  / max(booked, 1) * 100
+    book_r = booked / max(leads, 1) * 100
+
+    def _chg(curr, prev):
+        return (curr - prev) / abs(prev) * 100 if prev else None
+
+    def _badge(pct):
+        if pct is None: return ""
+        arrow = "▲" if pct >= 0 else "▼"
+        clr   = "#15803D" if pct >= 0 else "#DC2626"
+        return f' <span style="color:{clr};font-size:.78rem;font-weight:700;">{arrow} {abs(pct):.1f}%</span>'
+
+    # ── Compare two sources (e.g. "Google vs Facebook") ──────
+    _src_map = {
+        "google":    ["google"],
+        "facebook":  ["facebook", "meta", "fb"],
+        "instagram": ["instagram"],
+        "linkedin":  ["linkedin"],
+        "email":     ["email"],
+        "organic":   ["organic"],
+    }
+    found_srcs = [k for k, aliases in _src_map.items() if any(a in q for a in aliases)]
+
+    if len(found_srcs) >= 2:
+        rows = []
+        for src in found_srcs[:2]:
+            aliases = _src_map[src]
+            mask = d["data_source"].str.lower().apply(lambda x: any(a in x for a in aliases))
+            sd   = d[mask]
+            s_rev  = _s(sd, "total_revenue"); s_cost = _s(sd, "total_cost")
+            s_leads= _s(sd, "leads");         s_roas = s_rev / max(s_cost, 0.01)
+            rows.append({"_src": src.title(), "rev": s_rev, "cost": s_cost,
+                         "leads": s_leads, "roas": s_roas})
+        a, b = rows[0], rows[1]
+        winner_rev  = a["_src"] if a["rev"]  >= b["rev"]  else b["_src"]
+        winner_roas = a["_src"] if a["roas"] >= b["roas"] else b["_src"]
+        html = (
+            f'<b>{a["_src"]} vs {b["_src"]}</b> — {plabel}<br><br>'
+            '<table style="width:100%;border-collapse:collapse;font-size:.82rem;">'
+            '<thead><tr style="border-bottom:1.5px solid #E2E8F0;">'
+            + "".join(f'<th style="text-align:{"left" if i==0 else "right"};padding:4px 8px;'
+                      f'color:#64748B;font-size:.72rem;">{h}</th>'
+                      for i, h in enumerate(["Source","Revenue","Spend","ROAS","Leads"]))
+            + '</tr></thead><tbody>'
+        )
+        for r in rows:
+            rclr = "#15803D" if r["roas"] >= 3 else ("#DC2626" if r["roas"] < 1.5 else "#0F172A")
+            html += (f'<tr style="border-bottom:1px solid #F1F5F9;">'
+                     f'<td style="padding:5px 8px;font-weight:700;color:#0F172A;">{r["_src"]}</td>'
+                     f'<td style="text-align:right;padding:5px 8px;color:#0F172A;">${r["rev"]:,.0f}</td>'
+                     f'<td style="text-align:right;padding:5px 8px;color:#64748B;">${r["cost"]:,.0f}</td>'
+                     f'<td style="text-align:right;padding:5px 8px;font-weight:700;color:{rclr};">{r["roas"]:.2f}x</td>'
+                     f'<td style="text-align:right;padding:5px 8px;color:#0F172A;">{r["leads"]:,.0f}</td>'
+                     f'</tr>')
+        html += ('</tbody></table><br>'
+                 f'<span style="color:#64748B;font-size:.8rem;">'
+                 f'📊 <b>{winner_rev}</b> leads on revenue · <b>{winner_roas}</b> leads on ROAS</span>')
+        return {"text": html, "sql": None, "df": None, "error": None}
+
+    # ── Grouped by source or campaign ────────────────────────
+    grp = None
+    if any(x in q for x in ["by source", "per source", "by channel", "per channel"]):
+        grp = "data_source"
+    elif any(x in q for x in ["by campaign", "per campaign", "top campaign"]):
+        grp = "campaign"
+
+    if grp:
+        agg = (d.groupby(grp)
+               .agg(total_revenue=("total_revenue","sum"), total_cost=("total_cost","sum"),
+                    leads=("leads","sum"), booked=("booked","sum"))
+               .reset_index())
+        agg["roas"] = agg["total_revenue"] / agg["total_cost"].replace(0, 0.01)
+        sort_col = ("roas"          if any(x in q for x in ["roas","return"]) else
+                    "leads"         if any(x in q for x in ["lead","conversion"]) else
+                    "total_cost"    if any(x in q for x in ["spend","cost"]) else
+                    "total_revenue")
+        col_label = {"roas":"ROAS","leads":"Leads","total_cost":"Spend",
+                     "total_revenue":"Revenue"}.get(sort_col,"Revenue")
+        agg  = agg.sort_values(sort_col, ascending=False).head(8)
+        top  = agg.iloc[0]
+        html = (f'<b>{col_label} by {grp.replace("_"," ").title()}</b> — {plabel}<br><br>'
+                '<table style="width:100%;border-collapse:collapse;font-size:.82rem;">'
+                '<thead><tr style="border-bottom:1.5px solid #E2E8F0;">'
+                f'<th style="text-align:left;padding:4px 8px;color:#64748B;font-size:.72rem;">'
+                f'{grp.replace("_"," ").title()}</th>'
+                '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">Revenue</th>'
+                '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">ROAS</th>'
+                '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">Leads</th>'
+                '</tr></thead><tbody>')
+        for _, row in agg.iterrows():
+            rclr = "#15803D" if row["roas"] >= 3 else ("#DC2626" if row["roas"] < 1.5 else "#0F172A")
+            html += (f'<tr style="border-bottom:1px solid #F1F5F9;">'
+                     f'<td style="padding:5px 8px;font-weight:600;color:#0F172A;">{row[grp]}</td>'
+                     f'<td style="text-align:right;padding:5px 8px;color:#0F172A;">${row["total_revenue"]:,.0f}</td>'
+                     f'<td style="text-align:right;padding:5px 8px;font-weight:700;color:{rclr};">{row["roas"]:.2f}x</td>'
+                     f'<td style="text-align:right;padding:5px 8px;color:#0F172A;">{row["leads"]:,.0f}</td>'
+                     f'</tr>')
+        html += (f'</tbody></table><br>'
+                 f'<span style="color:#64748B;font-size:.8rem;">'
+                 f'🏆 <b>{top[grp]}</b> is the top performer by {col_label.lower()}.</span>')
+        return {"text": html, "sql": None, "df": None, "error": None}
+
+    # ── Single metric summary ─────────────────────────────────
+    if any(x in q for x in ["roas", "return on ad"]):
+        p_roas = _s(prior_d,"total_revenue") / max(_s(prior_d,"total_cost"), 0.01)
+        html = (f'<b>ROAS</b> — {plabel}<br>'
+                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{roas:.2f}x</span>'
+                f'{_badge(_chg(roas, p_roas))}<br><br>'
+                f'<span style="color:#64748B;font-size:.82rem;">'
+                f'Revenue: <b>${rev:,.0f}</b> &nbsp;·&nbsp; Spend: <b>${cost:,.0f}</b></span>')
+    elif any(x in q for x in ["lead", "conversion"]):
+        html = (f'<b>Leads</b> — {plabel}<br>'
+                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{leads:,.0f}</span>'
+                f'{_badge(_chg(leads, p_leads))}<br><br>'
+                f'<span style="color:#64748B;font-size:.82rem;">'
+                f'Booked: <b>{booked:,.0f}</b> ({book_r:.1f}%) &nbsp;·&nbsp; CPL: <b>${cpl:,.0f}</b></span>')
+    elif any(x in q for x in ["spend", "cost", "budget"]):
+        html = (f'<b>Ad Spend</b> — {plabel}<br>'
+                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">${cost:,.0f}</span>'
+                f'{_badge(_chg(cost, p_cost))}<br><br>'
+                f'<span style="color:#64748B;font-size:.82rem;">'
+                f'Revenue: <b>${rev:,.0f}</b> &nbsp;·&nbsp; ROAS: <b>{roas:.2f}x</b></span>')
+    elif any(x in q for x in ["show rate", "attendance", "attended", "no show", "no-show"]):
+        html = (f'<b>Show Rate</b> — {plabel}<br>'
+                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{show:.1f}%</span><br><br>'
+                f'<span style="color:#64748B;font-size:.82rem;">'
+                f'Booked: <b>{booked:,.0f}</b> &nbsp;·&nbsp; Attended: <b>{att:,.0f}</b> &nbsp;·&nbsp; '
+                f'No-shows: <b>{booked-att:,.0f}</b></span>')
+    elif any(x in q for x in ["book", "appointment"]):
+        html = (f'<b>Bookings</b> — {plabel}<br>'
+                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{booked:,.0f}</span><br><br>'
+                f'<span style="color:#64748B;font-size:.82rem;">'
+                f'From <b>{leads:,.0f}</b> leads ({book_r:.1f}% book rate) &nbsp;·&nbsp; '
+                f'Show rate: <b>{show:.1f}%</b></span>')
+    else:
+        html = (f'<b>Revenue</b> — {plabel}<br>'
+                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">${rev:,.0f}</span>'
+                f'{_badge(_chg(rev, p_rev))}<br><br>'
+                f'<span style="color:#64748B;font-size:.82rem;">'
+                f'Spend: <b>${cost:,.0f}</b> &nbsp;·&nbsp; ROAS: <b>{roas:.2f}x</b> &nbsp;·&nbsp; '
+                f'Leads: <b>{leads:,.0f}</b></span>')
+
+    return {"text": html, "sql": None, "df": None, "error": None}
+
+
 def ai_query_ask(question: str) -> dict:
     """
     Answer a question using Databricks ai_query() SQL function.
@@ -2074,14 +2248,14 @@ def render_ai():
 
     _csv_mode = (_ACTIVE_MODE != "databricks")
 
-    # ── Offline notice (CSV mode only) — subtle banner ───────
+    # ── CSV mode notice — subtle banner ──────────────────────
     if _csv_mode:
         st.markdown(
-            '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-left:4px solid #F59E0B;'
-            'border-radius:10px;padding:8px 14px;margin-bottom:.9rem;display:flex;'
-            'align-items:center;gap:10px;">'
-            '<span style="font-size:.8rem;font-weight:700;color:#92400E;">AI Agent offline</span>'
-            '<span style="font-size:.78rem;color:#78716C;">·  Switch to Live in the sidebar to activate.</span>'
+            '<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-left:4px solid #00C06B;'
+            'border-radius:10px;padding:8px 14px;margin-bottom:.9rem;">'
+            '<span style="font-size:.78rem;font-weight:700;color:#15803D;">Local CSV mode</span>'
+            '<span style="font-size:.77rem;color:#64748B;"> · Answers computed from your data file. '
+            'Switch to Live for full AI.</span>'
             '</div>',
             unsafe_allow_html=True
         )
@@ -2105,7 +2279,7 @@ def render_ai():
         _pc = st.columns(3, gap="medium")
         for col, (label, val) in zip(_pc, card_labels):
             with col:
-                if st.button(label, key=f"ai_p_{val}", use_container_width=True, disabled=_csv_mode):
+                if st.button(label, key=f"ai_p_{val}", use_container_width=True):
                     st.session_state.ai_preset = val
                     st.rerun()
 
@@ -2136,11 +2310,10 @@ def render_ai():
         user_q = st.text_input(
             "", placeholder="Ask anything about your data…",
             label_visibility="collapsed",
-            key=f"ai_input_{st.session_state.ai_nonce}",
-            disabled=_csv_mode
+            key=f"ai_input_{st.session_state.ai_nonce}"
         )
     with _scol:
-        ask = st.button("Send", use_container_width=True, key="ai_ask", type="primary", disabled=_csv_mode)
+        ask = st.button("Send", use_container_width=True, key="ai_ask", type="primary")
 
     st.markdown(
         '<p style="font-size:.70rem;color:#CBD5E1;margin:.25rem 0 .7rem;text-align:right;">'
@@ -2158,7 +2331,7 @@ def render_ai():
 
     if run_q:
         with st.spinner("Thinking…"):
-            result = ai_query_ask(run_q)
+            result = ai_query_csv(run_q) if _csv_mode else ai_query_ask(run_q)
         st.session_state.ai_history.insert(0, {"q": run_q, **result})
         if len(st.session_state.ai_history) > 10:
             st.session_state.ai_history = st.session_state.ai_history[:10]
