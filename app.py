@@ -233,7 +233,7 @@ if "force_live_mode" not in st.session_state:
     st.session_state["force_live_mode"] = False   # CSV is always the default on open
 
 _force_live    = st.session_state["force_live_mode"]
-_ACTIVE_MODE   = "databricks" if _force_live else DATA_MODE
+_ACTIVE_MODE   = "databricks" if _force_live else "csv"   # always CSV unless user switches
 _FALLBACK_WARN = None               # banner message shown in sidebar
 
 try:
