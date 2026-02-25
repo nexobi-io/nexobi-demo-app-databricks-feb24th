@@ -628,7 +628,7 @@ with st.sidebar:
     _export_slot = st.empty()
 
     # --- Navigation ---
-    page = st.radio("Navigation", ["Dashboard", "Command Center", "AI Agent"], key="nav")
+    page = st.radio("Navigation", ["Dashboard", "AI Agent"], key="nav")
 
     st.markdown("---")
     # --------------------------------------------------
@@ -691,12 +691,6 @@ with st.sidebar:
         st.session_state["_reset_filters"] = True
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
-
-    # --------------------------------------------------
-    # Alerts — sidebar expander
-    # --------------------------------------------------
-    with st.expander("Insights & Alerts", expanded=False):
-        _alerts_slot = st.empty()
 
     # --------------------------------------------------
     # Refresh button — bottom of sidebar (Databricks only)
@@ -900,10 +894,7 @@ for _sev, _pill_cls, _title, _detail, _action in _alerts:
         f'  <div class="nexo-alert-action"><b>Action:</b> {_action}</div>'
         f'</div>'
     )
-try:
-    _alerts_slot.markdown(_alert_items, unsafe_allow_html=True)
-except Exception:
-    st.sidebar.markdown(_alert_items, unsafe_allow_html=True)
+# (Alerts are now shown inline on the dashboard via render_signals / render_command_center)
 
 # ---- Export: CSV only ----
 csv_bytes = CUR.to_csv(index=False).encode("utf-8")
@@ -1356,7 +1347,6 @@ def render_marketing():
               </div>
             ''', unsafe_allow_html=True)
 
-    render_signals(_alerts, max_signals=3)
     render_story_cards()
     _tab_src, _tab_trend, _tab_funnel = st.tabs(["By Source", "Trends", "Patient Funnel"])
 
@@ -1517,7 +1507,6 @@ def render_practice():
               </div>
             ''', unsafe_allow_html=True)
 
-    render_signals(_alerts, max_signals=3)
     st.markdown('<div class="section-title">Attendance Trend</div>', unsafe_allow_html=True)
     trend = CUR.groupby("date", as_index=False).agg(booked=("booked","sum"), attended=("attended","sum")).sort_values("date")
     if len(trend) > 0:
@@ -2193,11 +2182,10 @@ if scn_active and scn_active != "None":
         )
 
 if page == "Dashboard":
+    render_command_center()
     if practice_mode:
         render_practice()
     else:
         render_marketing()
-elif page == "Command Center":
-    render_command_center()
 else:
     render_ai()
