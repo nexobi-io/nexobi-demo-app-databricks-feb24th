@@ -2366,11 +2366,6 @@ def render_ai():
   <div><span class="ai-status-pill"><span class="ai-pulse"></span>◆ NexoBI AI &nbsp;·&nbsp; {"Local data" if _csv_mode else "Live · Databricks"}</span></div>
   <div class="ai-catch">Ask anything about<br><span class="ai-catch-hi">your practice.</span></div>
   <div class="ai-catch-sub">Get straight answers from your data. No dashboards needed.</div>
-  <div class="ai-suggestions">
-    <span>💡 What was my revenue last 30 days?</span>
-    <span>💡 Compare Google vs Facebook ROAS...</span>
-    <span>💡 Which campaign has the best CPL?</span>
-  </div>
 </div>
 ''', unsafe_allow_html=True)
 
@@ -2577,46 +2572,66 @@ section.main{margin-left:0!important;}
   box-shadow:0 6px 28px rgba(0,192,107,.55)!important;
   transform:scale(1.08)!important;
 }
-/* ── Preset chips — dark glass ─────────────────────────── */
+/* ── ALL secondary buttons — dark glass, no white ──────── */
+button[kind="secondary"],
+.stButton>button[kind="secondary"],
 section.main .stButton>button{
   background:rgba(255,255,255,.06)!important;
   border:1px solid rgba(255,255,255,.12)!important;
-  color:rgba(255,255,255,.65)!important;
+  color:rgba(255,255,255,.62)!important;
   box-shadow:none!important;
 }
+button[kind="secondary"]:hover,
+.stButton>button[kind="secondary"]:hover,
 section.main .stButton>button:hover{
   background:rgba(255,255,255,.11)!important;
-  color:rgba(255,255,255,.9)!important;
+  color:rgba(255,255,255,.88)!important;
+  border-color:rgba(255,255,255,.22)!important;
 }
-/* Preset chips pill shape */
+/* Preset chips — pill shape */
 [data-testid="stMarkdownContainer"]:has(#ai-cards-marker)+[data-testid="stHorizontalBlock"] .stButton>button{border-radius:999px!important;}
-/* ── AI bubble ─────────────────────────────────────────── */
+/* ── AI bubble — force ALL child text light grey ────────── */
 .ai-bubble-ai{background:rgba(255,255,255,.05)!important;border-color:rgba(0,192,107,.22)!important;color:#CBD5E1!important;}
+.ai-bubble-ai *{color:#CBD5E1!important;}
+.ai-bubble-ai b,.ai-bubble-ai strong,.ai-bubble-ai th{color:#E8EDF4!important;}
+.ai-bubble-ai span[style]{color:#CBD5E1!important;}
+.ai-bubble-ai .ai-msg-label{color:#00C06B!important;}
 /* ── New-chat button ───────────────────────────────────── */
 [data-testid="stColumn"]:has(#ai-newchat-marker) .stButton>button{border-radius:8px!important;padding:.2rem .65rem!important;min-height:0!important;height:auto!important;}
 /* ── Powered-by text ───────────────────────────────────── */
 .stMarkdownContainer p{color:rgba(255,255,255,.28)!important;}
-/* ── Dashboard button ──────────────────────────────────── */
-[data-testid="stMarkdownContainer"]:has(#ai-dash-toggle)+div .stButton>button{
-  background:transparent!important;
-  border:1px solid rgba(255,255,255,.16)!important;
-  border-radius:999px!important;padding:5px 15px!important;
-  color:rgba(255,255,255,.45)!important;font-size:.74rem!important;font-weight:500!important;
-  min-height:0!important;height:auto!important;box-shadow:none!important;
-  letter-spacing:.01em!important;
-}
-[data-testid="stMarkdownContainer"]:has(#ai-dash-toggle)+div .stButton>button:hover{
-  background:rgba(255,255,255,.07)!important;color:rgba(255,255,255,.75)!important;
-  border-color:rgba(255,255,255,.28)!important;
+/* ── Hidden Streamlit dashboard button (triggered by fixed HTML) */
+[data-testid="stMarkdownContainer"]:has(#ai-dash-toggle)+div{
+  position:absolute!important;left:-9999px!important;
+  width:1px!important;height:1px!important;overflow:hidden!important;
 }
 </style>""", unsafe_allow_html=True)
 
     # ── Full-page aurora orbs (fixed, bleed whole viewport) ──
     st.markdown('<div class="ai-page-orbs"><div class="op1"></div><div class="op2"></div><div class="op3"></div></div>', unsafe_allow_html=True)
 
-    # ── Dashboard button — top-left, subtle ghost ─────────────
+    # ── Fixed dashboard pill — raw HTML for reliable top-left position ──
+    st.markdown("""
+<button id="nexobi-dash-pill" onclick="var b=document.querySelector('[data-testid=stMarkdownContainer] ~ div #ai-dash-trigger');if(!b){var all=document.querySelectorAll('button');for(var i=0;i<all.length;i++){if(all[i].innerText.trim()==='__DASH__'){b=all[i];break;}}}if(b)b.click();">← Dashboard</button>
+<style>
+#nexobi-dash-pill{
+  position:fixed;top:16px;left:16px;z-index:10000;
+  background:transparent;border:1px solid rgba(255,255,255,.14);
+  border-radius:999px;padding:4px 14px;
+  color:rgba(255,255,255,.38);font-size:.7rem;font-weight:500;
+  cursor:pointer;font-family:inherit;letter-spacing:.02em;
+  transition:all .18s;
+}
+#nexobi-dash-pill:hover{
+  background:rgba(255,255,255,.06);
+  color:rgba(255,255,255,.65);
+  border-color:rgba(255,255,255,.22);
+}
+</style>""", unsafe_allow_html=True)
+
+    # Hidden Streamlit button — handles session state, triggered by JS above
     st.markdown('<div id="ai-dash-toggle"></div>', unsafe_allow_html=True)
-    if st.button("← Dashboard", key="ai_go_dashboard"):
+    if st.button("__DASH__", key="ai_go_dashboard"):
         st.session_state["_go_dashboard"] = True
         st.rerun()
 
