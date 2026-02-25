@@ -416,7 +416,7 @@ section[data-testid="stSidebar"] .stButton>button:hover{background:#E6F9F0!impor
 .ai-hero{position:relative;text-align:center;padding:3.2rem 0 2rem;overflow:hidden;}
 .ai-hero::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-56%);width:560px;height:260px;background:radial-gradient(ellipse at center,rgba(0,192,107,.08) 0%,rgba(59,130,246,.04) 55%,transparent 75%);pointer-events:none;border-radius:50%;}
 /* Catchphrase main text */
-.ai-catch{font-family:'Plus Jakarta Sans',sans-serif;font-size:2.4rem;font-weight:900;color:#0F172A;line-height:1.1;margin-bottom:.55rem;position:relative;}
+.ai-catch{font-family:'Plus Jakarta Sans',sans-serif;font-size:3.0rem;font-weight:900;color:#0F172A;line-height:1.1;margin-bottom:.55rem;position:relative;}
 .ai-catch-hi{background:linear-gradient(120deg,#00C06B 0%,#3B82F6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .ai-catch-sub{font-size:.78rem;color:#94A3B8;font-weight:500;letter-spacing:.1em;text-transform:uppercase;position:relative;}
 /* Preset cards — :has() sibling from marker */
@@ -955,7 +955,7 @@ def render_marketing():
                 st.plotly_chart(plot_line(trend,"date","leads","Leads Over Time",color=BLUE), use_container_width=True, config={"displayModeBar":False})
                 st.markdown('</div>', unsafe_allow_html=True)
 
-    with st.expander("Patient Journey by Source", expanded=False):
+    with st.expander("Patient Journey by Source", expanded=True):
         journey = base.groupby("data_source", as_index=False).agg(
             Sessions=("sessions","sum"),
             Leads=("leads","sum"),
@@ -984,7 +984,7 @@ def render_marketing():
         jd["ROAS"]=jd["ROAS"].apply(lambda x: f"{x:.2f}x")
         st.dataframe(df_light(jd), use_container_width=True, hide_index=True, height=df_height(len(jd)))
 
-    with st.expander("Top Campaigns", expanded=True):
+    with st.expander("Top Campaigns", expanded=False):
         camps = base[base["campaign"].astype(str).str.strip().ne("")].groupby("campaign", as_index=False).agg(
             Revenue=("total_revenue","sum"),
             Spend=("total_cost","sum"),
