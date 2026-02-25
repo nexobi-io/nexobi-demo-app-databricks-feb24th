@@ -1557,8 +1557,8 @@ def render_ai():
     if not has_history:
         st.markdown('''
 <div class="ai-hero">
-  <div class="ai-catch">Ask anything.<br><span class="ai-catch-hi">Know everything.</span></div>
-  <div class="ai-catch-sub">Your live data &middot; Answered in plain English</div>
+  <div class="ai-catch">Ask anything.<br><span class="ai-catch-hi">Clarity on demand.</span></div>
+  <div class="ai-catch-sub">Your live data &middot; Straight Talk</div>
 </div>
 ''', unsafe_allow_html=True)
 
