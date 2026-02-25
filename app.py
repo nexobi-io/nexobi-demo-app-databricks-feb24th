@@ -2072,28 +2072,19 @@ def render_ai():
     has_history  = len(st.session_state.ai_history) > 0
     has_pending  = bool(st.session_state.get("ai_preset"))   # preset queued → skip hero
 
-    # ── CSV mode: show offline wall and stop — nothing below should render ──
-    if _ACTIVE_MODE != "databricks":
+    _csv_mode = (_ACTIVE_MODE != "databricks")
+
+    # ── Offline notice (CSV mode only) — subtle banner ───────
+    if _csv_mode:
         st.markdown(
-            '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:16px;'
-            'padding:40px 32px;text-align:center;margin-top:2rem;">'
-            '<div style="font-size:2rem;margin-bottom:12px;">🤖</div>'
-            '<div style="font-size:1.1rem;font-weight:800;color:#0F172A;margin-bottom:6px;">'
-            'AI Agent is offline</div>'
-            '<div style="font-size:.85rem;color:#64748B;max-width:380px;margin:0 auto 24px;">'
-            'The dashboard is fully functional in Local CSV mode. '
-            'Switch to Live to activate the AI Agent and connect to Databricks.</div>'
+            '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-left:4px solid #F59E0B;'
+            'border-radius:10px;padding:8px 14px;margin-bottom:.9rem;display:flex;'
+            'align-items:center;gap:10px;">'
+            '<span style="font-size:.8rem;font-weight:700;color:#92400E;">AI Agent offline</span>'
+            '<span style="font-size:.78rem;color:#78716C;">·  Switch to Live in the sidebar to activate.</span>'
             '</div>',
             unsafe_allow_html=True
         )
-        if st.button("Switch to Live →", key="ai_go_live_btn", type="primary"):
-            st.session_state["force_live_mode"] = True
-            try:
-                load_data_databricks.clear()
-            except Exception:
-                pass
-            st.rerun()
-        return   # ← hard stop: no input, no cards, no Databricks calls
 
     # ── EMPTY STATE: hero + preset cards ────────────────────
     if not has_history and not has_pending:
@@ -2114,7 +2105,7 @@ def render_ai():
         _pc = st.columns(3, gap="medium")
         for col, (label, val) in zip(_pc, card_labels):
             with col:
-                if st.button(label, key=f"ai_p_{val}", use_container_width=True):
+                if st.button(label, key=f"ai_p_{val}", use_container_width=True, disabled=_csv_mode):
                     st.session_state.ai_preset = val
                     st.rerun()
 
@@ -2145,10 +2136,11 @@ def render_ai():
         user_q = st.text_input(
             "", placeholder="Ask anything about your data…",
             label_visibility="collapsed",
-            key=f"ai_input_{st.session_state.ai_nonce}"
+            key=f"ai_input_{st.session_state.ai_nonce}",
+            disabled=_csv_mode
         )
     with _scol:
-        ask = st.button("Send", use_container_width=True, key="ai_ask", type="primary")
+        ask = st.button("Send", use_container_width=True, key="ai_ask", type="primary", disabled=_csv_mode)
 
     st.markdown(
         '<p style="font-size:.70rem;color:#CBD5E1;margin:.25rem 0 .7rem;text-align:right;">'
