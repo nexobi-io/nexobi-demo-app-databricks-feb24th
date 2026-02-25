@@ -2072,18 +2072,28 @@ def render_ai():
     has_history  = len(st.session_state.ai_history) > 0
     has_pending  = bool(st.session_state.get("ai_preset"))   # preset queued → skip hero
 
-    # ── Offline notice (CSV fallback mode) ──────────────────
+    # ── CSV mode: show offline wall and stop — nothing below should render ──
     if _ACTIVE_MODE != "databricks":
         st.markdown(
-            '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-left:4px solid #F59E0B;'
-            'border-radius:12px;padding:10px 16px;margin-bottom:.75rem;">'
-            '<span style="font-weight:700;color:#92400E;">AI Agent offline</span>'
-            ' &nbsp;·&nbsp; <span style="font-size:.83rem;color:#78716C;">'
-            'Databricks quota exhausted. The dashboard is fully functional using your local CSV. '
-            'Charts below will still generate from your data.</span>'
+            '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:16px;'
+            'padding:40px 32px;text-align:center;margin-top:2rem;">'
+            '<div style="font-size:2rem;margin-bottom:12px;">🤖</div>'
+            '<div style="font-size:1.1rem;font-weight:800;color:#0F172A;margin-bottom:6px;">'
+            'AI Agent is offline</div>'
+            '<div style="font-size:.85rem;color:#64748B;max-width:380px;margin:0 auto 24px;">'
+            'The dashboard is fully functional in Local CSV mode. '
+            'Switch to Live to activate the AI Agent and connect to Databricks.</div>'
             '</div>',
             unsafe_allow_html=True
         )
+        if st.button("Switch to Live →", key="ai_go_live_btn", type="primary"):
+            st.session_state["force_live_mode"] = True
+            try:
+                load_data_databricks.clear()
+            except Exception:
+                pass
+            st.rerun()
+        return   # ← hard stop: no input, no cards, no Databricks calls
 
     # ── EMPTY STATE: hero + preset cards ────────────────────
     if not has_history and not has_pending:
