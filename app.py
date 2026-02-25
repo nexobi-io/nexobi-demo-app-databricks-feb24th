@@ -693,6 +693,37 @@ with st.sidebar:
     st.markdown('</div>', unsafe_allow_html=True)
 
     # --------------------------------------------------
+    # Connected Platforms — seamless sidebar section
+    # --------------------------------------------------
+    st.markdown('''
+<div style="margin-top:16px;padding-top:14px;border-top:1px solid #F1F5F9;">
+  <div style="font-size:.64rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:9px;">Connected Platforms</div>
+  <div style="display:flex;flex-direction:column;gap:7px;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
+      <span style="font-size:.79rem;font-weight:500;color:#334155;">Google Ads</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
+      <span style="font-size:.79rem;font-weight:500;color:#334155;">Meta Ads</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
+      <span style="font-size:.79rem;font-weight:500;color:#334155;">GA4</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
+      <span style="font-size:.79rem;font-weight:500;color:#334155;">LinkedIn</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
+      <span style="font-size:.79rem;font-weight:500;color:#334155;">Dentrix</span>
+    </div>
+  </div>
+</div>
+''', unsafe_allow_html=True)
+
+    # --------------------------------------------------
     # Refresh button — bottom of sidebar (Databricks only)
     # --------------------------------------------------
     if _DBX_MODE:
@@ -1274,19 +1305,6 @@ def render_command_center():
   <div class="sig-action"><b>Action:</b> {action}</div>
 </div>''', unsafe_allow_html=True)
 
-    # ── Integration ecosystem ──────────────────────────────
-    st.markdown('<div class="section-title" style="margin-top:.75rem;">Platform Integrations</div>', unsafe_allow_html=True)
-    st.markdown(f'''
-<div class="integ-strip">
-  <span style="font-size:.72rem;font-weight:600;color:#94A3B8;margin-right:4px;">Connected data sources:</span>
-  <span class="integ-badge"><span class="integ-dot"></span>Google Ads</span>
-  <span class="integ-badge"><span class="integ-dot"></span>Meta Ads</span>
-  <span class="integ-badge"><span class="integ-dot"></span>Salesforce CRM</span>
-  <span class="integ-badge"><span class="integ-dot"></span>Epic EHR</span>
-  <span class="integ-badge"><span class="integ-dot"></span>HubSpot</span>
-  <span style="font-size:.68rem;color:#94A3B8;margin-left:6px;">· Unified via Databricks Unity Catalog</span>
-</div>
-''', unsafe_allow_html=True)
 
 
 # ==========================================================
@@ -1314,38 +1332,6 @@ def render_marketing():
     prev_leads = float(prev_base["leads"].sum() or 0)
     rev_chg = safe_div(revenue - prev_rev, max(abs(prev_rev), 0.01)) * 100
     lds_chg = safe_div(leads - prev_leads, max(abs(prev_leads), 0.01)) * 100
-
-    # Benchmark comparison helpers
-    _cpl = safe_div(spend, max(leads, 0.01))
-    def _brow(val_num, bench_num, bench_label, higher_better=True, fmt_fn=None):
-        beat  = (val_num >= bench_num) if higher_better else (val_num <= bench_num)
-        close = abs(val_num - bench_num) / max(bench_num, 0.01) < 0.12
-        c     = "#009952" if beat else ("#D97706" if close else "#EF4444")
-        arrow = ("▲" if beat else "▼") if higher_better else ("▼" if beat else "▲")
-        return f'<div class="metric-bench"><span style="color:{c};font-weight:700;">{arrow}</span> vs {bench_label} avg</div>'
-
-    st.markdown('<div class="section-title">Performance Overview</div>', unsafe_allow_html=True)
-    _kpi_bench = {
-        "Revenue":  "",   # no universal $ benchmark
-        "Ad Spend": _brow(_cpl, BENCH_CPL, f"${BENCH_CPL:.0f} CPL", higher_better=False),
-        "ROAS":     _brow(roas, BENCH_ROAS, f"{BENCH_ROAS}x ROAS"),
-        "Leads":    _brow(lds_chg, BENCH_LEAD_GRO, f"+{BENCH_LEAD_GRO:.0f}% growth"),
-    }
-    for col,(label,value,meta) in zip(st.columns(4),[
-        ("Revenue", money(revenue), delta_html(rev_chg, has_prev)),
-        ("Ad Spend", money(spend), f'<span style="color:{MUTED};font-size:.8rem;">CPL: {money(_cpl)}</span>'),
-        ("ROAS", f"{roas:.2f}x", f'<span style="color:{MUTED};font-size:.8rem;">Return on ad spend</span>'),
-        ("Leads", fmt(leads), delta_html(lds_chg, has_prev)),
-    ]):
-        with col:
-            st.markdown(f'''
-              <div class="metric-card">
-                <div class="metric-label">{label}</div>
-                <div class="metric-value">{value}</div>
-                <div class="metric-meta">{meta}</div>
-                {_kpi_bench.get(label, "")}
-              </div>
-            ''', unsafe_allow_html=True)
 
     render_story_cards()
     st.markdown('<div class="section-title">Patient Funnel</div>', unsafe_allow_html=True)
