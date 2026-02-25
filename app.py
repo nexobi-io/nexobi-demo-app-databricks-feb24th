@@ -594,7 +594,11 @@ with st.sidebar:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # (alerts rendered as floating popup in main area)
+    # --------------------------------------------------
+    # Alerts — sidebar expander
+    # --------------------------------------------------
+    with st.expander("Insights & Alerts", expanded=False):
+        _alerts_slot = st.empty()
 
     # --------------------------------------------------
     # Refresh button — bottom of sidebar (Databricks only)
@@ -784,7 +788,7 @@ try:
 except Exception:
     _alerts = [("Info", "sb-pill-green", "Healthy", "No anomalies detected.", "Keep monitoring weekly.")]
 
-# ---- Floating alert popup (top-right of main area) ----
+# ---- Alert HTML → sidebar slot ----
 _alert_items = ""
 for _sev, _pill_cls, _title, _detail, _action in _alerts:
     _sev_cls = "sev-green" if _pill_cls == "sb-pill-green" else ("sev-amber" if _pill_cls == "sb-pill-amber" else "sev-red")
@@ -798,15 +802,10 @@ for _sev, _pill_cls, _title, _detail, _action in _alerts:
         f'  <div class="nexo-alert-action"><b>Action:</b> {_action}</div>'
         f'</div>'
     )
-_alert_popup_html = (
-    f'<div class="nexo-popup">'
-    f'  <div class="nexo-popup-header">'
-    f'    <div class="nexo-popup-title">Insights</div>'
-    f'  </div>'
-    f'  {_alert_items}'
-    f'</div>'
-)
-st.markdown(_alert_popup_html, unsafe_allow_html=True)
+try:
+    _alerts_slot.markdown(_alert_items, unsafe_allow_html=True)
+except Exception:
+    st.sidebar.markdown(_alert_items, unsafe_allow_html=True)
 
 # ---- Export: CSV immediately, PDF cached on filter state ----
 try:
