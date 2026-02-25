@@ -416,7 +416,7 @@ section[data-testid="stSidebar"] .stButton>button:hover{background:#E6F9F0!impor
 .ai-hero{position:relative;text-align:center;padding:3.2rem 0 2rem;overflow:hidden;}
 .ai-hero::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-56%);width:560px;height:260px;background:radial-gradient(ellipse at center,rgba(0,192,107,.08) 0%,rgba(59,130,246,.04) 55%,transparent 75%);pointer-events:none;border-radius:50%;}
 /* Catchphrase main text */
-.ai-catch{font-family:'Plus Jakarta Sans',sans-serif;font-size:3.0rem;font-weight:900;color:#0F172A;line-height:1.1;margin-bottom:.55rem;position:relative;}
+.ai-catch{font-family:'Plus Jakarta Sans',sans-serif;font-size:3.5rem;font-weight:900;color:#0F172A;line-height:1.1;margin-bottom:.55rem;position:relative;}
 .ai-catch-hi{background:linear-gradient(120deg,#00C06B 0%,#3B82F6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
 .ai-catch-sub{font-size:.78rem;color:#94A3B8;font-weight:500;letter-spacing:.1em;text-transform:uppercase;position:relative;}
 /* Preset cards — :has() sibling from marker */
