@@ -2547,39 +2547,33 @@ section.main{margin-left:0!important;}
 }
 #nexobi-dash-pill:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.22);}
 /* ── Textarea ───────────────────────────────────────────── */
-.stTextArea>div>div>textarea{
-  background:rgba(255,255,255,.055)!important;
-  border:1px solid rgba(255,255,255,.12)!important;
+[data-testid="stTextArea"] textarea{
+  background:rgba(255,255,255,.07)!important;
+  border:1px solid rgba(255,255,255,.14)!important;
   border-radius:16px!important;color:#E2E8F0!important;
   padding:13px 16px!important;font-size:.9rem!important;
   line-height:1.5!important;resize:none!important;box-shadow:none!important;
 }
-.stTextArea>div>div>textarea::placeholder{color:rgba(255,255,255,.28)!important;}
-.stTextArea>div>div>textarea:focus{border-color:rgba(0,192,107,.35)!important;box-shadow:0 0 0 3px rgba(0,192,107,.12)!important;background:rgba(255,255,255,.08)!important;}
-.stTextArea>div>div,.stTextArea>div{border:none!important;background:transparent!important;}
-/* ── ALL buttons — reset to dark glass base ─────────────── */
-section.main .stButton button{
+[data-testid="stTextArea"] textarea::placeholder{color:rgba(255,255,255,.3)!important;}
+[data-testid="stTextArea"] textarea:focus{border-color:rgba(0,192,107,.35)!important;box-shadow:0 0 0 3px rgba(0,192,107,.12)!important;}
+[data-testid="stTextArea"]>div,[data-testid="stTextArea"]>div>div{border:none!important;background:transparent!important;}
+/* ── Secondary buttons — dark glass using data-testid ─── */
+[data-testid="stBaseButton-secondary"]{
   background:rgba(255,255,255,.07)!important;
-  border:1px solid rgba(255,255,255,.13)!important;
+  border:1px solid rgba(255,255,255,.14)!important;
   color:rgba(255,255,255,.62)!important;
-  box-shadow:none!important;
-  border-radius:999px!important;
-  padding:.3rem .95rem!important;
-  font-size:.77rem!important;
-  min-height:0!important;height:auto!important;
-  letter-spacing:.01em!important;
+  box-shadow:none!important;border-radius:999px!important;
+  padding:.3rem .95rem!important;font-size:.77rem!important;
+  min-height:0!important;height:auto!important;letter-spacing:.01em!important;
   transition:all .16s!important;
 }
-section.main .stButton button:hover{
-  background:rgba(255,255,255,.12)!important;
+[data-testid="stBaseButton-secondary"]:hover{
+  background:rgba(255,255,255,.13)!important;
   color:rgba(255,255,255,.88)!important;
   border-color:rgba(255,255,255,.22)!important;
 }
-/* ── Primary / Send button — circular green (wins cascade) ─ */
-section.main .stButton button[data-testid="stBaseButton-primary"],
-section.main .stButton button[data-testid="baseButton-primary"],
-[data-testid="stBaseButton-primary"],
-[data-testid="baseButton-primary"]{
+/* ── Primary / Send — circular green ────────────────────── */
+[data-testid="stBaseButton-primary"]{
   border-radius:50%!important;
   width:46px!important;min-width:46px!important;
   height:46px!important;min-height:46px!important;
@@ -2587,17 +2581,22 @@ section.main .stButton button[data-testid="baseButton-primary"],
   background:linear-gradient(135deg,#00C06B,#00875A)!important;
   color:#fff!important;border:none!important;
   box-shadow:0 4px 18px rgba(0,192,107,.35)!important;
+  transition:all .18s!important;
 }
-section.main .stButton button[data-testid="stBaseButton-primary"]:hover,
-[data-testid="stBaseButton-primary"]:hover,
-[data-testid="baseButton-primary"]:hover{
+[data-testid="stBaseButton-primary"]:hover{
   box-shadow:0 6px 26px rgba(0,192,107,.5)!important;
   transform:scale(1.07)!important;
 }
-/* ── AI bubble — light text ──────────────────────────────── */
-.ai-bubble-ai{background:rgba(255,255,255,.04)!important;border-color:rgba(0,192,107,.2)!important;color:#CBD5E1!important;}
-.ai-bubble-ai *{color:#CBD5E1!important;}
-.ai-bubble-ai b,.ai-bubble-ai strong,.ai-bubble-ai th{color:#E8EDF4!important;}
+/* ── AI bubble — white card, DARK text ───────────────────── */
+.ai-bubble-ai{
+  background:rgba(255,255,255,.92)!important;
+  border:none!important;border-left:3px solid #00C06B!important;
+  border-radius:4px 18px 18px 18px!important;
+  color:#1E293B!important;
+}
+.ai-bubble-ai *{color:#334155!important;}
+.ai-bubble-ai b,.ai-bubble-ai strong,.ai-bubble-ai th{color:#0F172A!important;}
+.ai-bubble-ai td{color:#334155!important;}
 /* ── Misc ────────────────────────────────────────────────── */
 .stMarkdownContainer p{color:rgba(255,255,255,.26)!important;}
 </style>""", unsafe_allow_html=True)
