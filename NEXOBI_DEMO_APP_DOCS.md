@@ -46,14 +46,13 @@ NexoBI Demo App is a single-page Streamlit application that gives healthcare/den
 | `numpy` | Numeric helpers (regression, safe division) |
 | `plotly` | All charts (Scatter, Funnel, Bar, Pie) |
 | `databricks-sql-connector` | Databricks SQL Warehouse connection (live mode only) |
-| `requests` | HTTP calls for Databricks AI endpoint |
-| `re`, `difflib`, `hashlib` | Text normalization, fuzzy matching, hashing |
+| `re` | Text normalization |
 
 **Python version:** 3.9+
 
 **Install dependencies:**
 ```bash
-pip install streamlit pandas numpy plotly databricks-sql-connector requests
+pip install streamlit pandas numpy plotly databricks-sql-connector
 ```
 
 ---
@@ -501,7 +500,7 @@ The app defaults to CSV on every fresh session to avoid burning quota unintentio
 
 ### CSV Mode (Offline Engine — `ai_query_csv`)
 
-Fully functional offline. Answers computed directly from `DATA`.
+Fully functional offline (~173 lines). Answers computed directly from `DATA` using pattern matching — no LLM involved.
 
 **Supported question patterns:**
 
@@ -520,6 +519,8 @@ Fully functional offline. Answers computed directly from `DATA`.
 **Time ranges parsed:** last 7 days · last 30 days (default) · last 90 days / quarter
 
 **Response format:** HTML bubble with large metric number + growth badge + supporting stats. Tables rendered inline for grouped results.
+
+> **Production note:** Once fully deployed on Databricks, `ai_query_csv` and the `_csv_mode` routing branch in `render_ai()` can be removed (~173 lines). Also flip the default: `force_live_mode = True` based on an env var (e.g. `DATABRICKS_HOST` being set). See Section 9 for the recommended pattern.
 
 ### Live Mode (Databricks AI — `ai_query_ask`)
 
@@ -638,6 +639,60 @@ Typography: **Plus Jakarta Sans** (imported via Google Fonts in CSS).
 3. **Follow-up suggestion chips** — makes the AI feel smarter, keeps demos on track
 4. **Goal tracking tiles** — simple session state + one new input, transforms the product story from "reporting" to "accountability"
 5. **Custom logo/favicon** — 30 minutes of work, immediately more professional
+
+---
+
+## 15. Code Cleanup Log
+
+### Completed (February 2026)
+
+**~325 lines removed — commit `2477c67`:**
+
+| Category | What was removed |
+|---|---|
+| Imports | `difflib`, `hashlib`, `time`, `requests` |
+| Variable | `DATA_MODE` (env var, never read) |
+| Functions | `plot_bar()`, `render_signals()` |
+| Dead AI pipeline | `MONTHS`, `parse_dates`, `METRICS`, `fuzzy_metric`, `metric_value`, `metric_format`, `actions_for`, `compute_why`, `compute_compare`, `quick_recos` (~207 lines — replaced deterministic engine) |
+| Dead variables | `rev_chg`, `lds_chg`, `_go_dashboard` pop, `dismiss_quick` |
+| Dead CSS | `@keyframes aurora`, `@keyframes shimmer`, `@keyframes suggFade`, `.ai-suggestions`, `.ai-kpi-row/.ai-kpi`, `.ai-pill`, `.ai-actions`, `.reset-wrap`, `.integ-strip/.integ-badge/.integ-dot` |
+| Simplified | `_build_data_context()` → one-liner (column names never matched actual schema) |
+
+---
+
+### Further Trimming Opportunities
+
+**1. Production-only trim — remove CSV AI engine (~173 lines)**
+- Remove `ai_query_csv()` entirely
+- Remove `_csv_mode` branch in `render_ai()` — always call `ai_query_ask()`
+- Remove "Switch to Live/CSV" toggle in sidebar (optional)
+- Flip default: `force_live_mode = True` when `DATABRICKS_HOST` env var is set
+- **Requires:** App is always deployed on Databricks; no offline/demo use case needed
+
+**2. Dead function: `norm()` (~2 lines)**
+- Defined at line ~120 as `re.sub(r"[^a-z0-9]+"…)`
+- Was used by the removed deterministic AI pipeline — now has zero callers
+- Safe to delete
+
+**3. Dead CSS: `.ai-orb`, `.ai-noise` (1 line)**
+- `display:none!important` rule for elements that no longer exist in the HTML
+- Can be deleted outright
+
+**4. Dead CSS: `.metric-bench` (1 line)**
+- Defined but never applied to any HTML element
+- Safe to delete
+
+**5. Dead CSS: alert/pill/severity classes (~25 lines)**
+- `.nexo-alert`, `.nexo-alert-row`, `.nexo-alert-title`, `.nexo-alert-pill`, `.nexo-alert-detail`
+- `.sb-pill-red/amber/green`, `.sc-pill-red/amber/green`, `.sig-sev-red/amber/green`
+- These ARE referenced as string values in Python logic — verify before removing that none map to active HTML
+- If `render_signals()` is already gone (it is), these become fully orphaned
+
+**6. `plot_bar_multi()` — consider inlining (~14 lines)**
+- Only called once in `_ai_chart()`
+- Could be inlined to remove the indirection — minor cleanup
+
+**Total further savings:** ~215 lines (mostly from #1), or ~40 lines without the CSV engine removal.
 
 ---
 
