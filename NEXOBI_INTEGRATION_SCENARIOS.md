@@ -1,35 +1,60 @@
 # NexoBI — Integration Scenarios & Architecture
-### Dentrix · Google Ads · Meta Ads · HubSpot · CallRail · GA4 · and more
+### Healthcare Marketing · Attribution · AI Agent · Organic Search · EHR · CRM
 
-> **Purpose:** Full reference for all NexoBI integration scenarios — data flows, patient journey examples, platform-by-platform architecture, and ETL pipeline design. Use this for sales demos, technical discovery, and product roadmap planning.
+> **Purpose:** Full reference for NexoBI integration scenarios — attribution architecture, patient journey examples, platform connections, organic search, probabilistic attribution, and AI Agent design. Use for sales demos, technical discovery, and product roadmap.
+>
+> **Last updated:** February 27, 2026 · 19 sections · ~5,400 lines
 
 ---
 
 ## Table of Contents
 
+### Part I — Foundations
 1. [Why Integrations Matter](#1-why-integrations-matter)
 2. [Core Attribution Architecture](#2-core-attribution-architecture)
 3. [Patient Journey Scenarios](#3-patient-journey-scenarios)
-   - 3.1 Simple — Maria Rodriguez (Google Ads → Dentrix)
-   - 3.2 Multi-Patient — Campaign Comparison
-   - 3.3 Complex — David Chen (HubSpot Nurture + LTV)
 4. [Integration Ecosystem Map](#4-integration-ecosystem-map)
+
+### Part II — Platform Reference
 5. [Platform-by-Platform Reference](#5-platform-by-platform-reference)
-   - 5.1 Dentrix (G-Series & Ascend)
-   - 5.2 Google Ads + CallRail
-   - 5.3 Meta Ads
-   - 5.4 GA4
-   - 5.5 HubSpot CRM
-   - 5.6 Weave / NexHealth
-   - 5.7 Podium / Birdeye (Reviews)
-   - 5.8 LinkedIn Ads
 6. [Data Pipeline Architecture](#6-data-pipeline-architecture)
 7. [Databricks Schema & Table](#7-databricks-schema--table)
 8. [NexoBI Data Schema Mapping](#8-nexobi-data-schema-mapping)
+
+### Part III — Case Studies
 9. [Sales Talking Points](#9-sales-talking-points)
 10. [Roadmap & Open Questions](#10-roadmap--open-questions)
 11. [Case Study — EHR + Paid Marketing with HIPAA Guardrails](#11-case-study--ehr--paid-marketing-with-hipaa-guardrails)
 12. [Case Study — CRM + SEO / Organic Search](#12-case-study--crm--seo--organic-search)
+
+### Part IV — Attribution Deep Dives
+13. [Organic Search → EHR: The Full-Funnel Attribution Problem](#13-deep-dive--organic-search--ehr-the-full-funnel-attribution-problem)
+14. [Software Integration Samples — Code Reference](#14-software-integration-samples--platform-by-platform-connection-guide)
+15. [SEO / Organic Search — Real-World Scenarios](#15-seo--organic-search--real-world-integration-scenarios)
+
+### Part V — Broader Healthcare & AI Architecture
+16. [Healthcare Marketing — Beyond Dental](#16-healthcare-marketing--broader-vertical-coverage)
+17. [The Attribution Problem — Core Framework](#17-the-attribution-problem--connecting-marketing-effort-to-revenue)
+18. [Real Problems. Real Revenue. The NexoBI Case.](#18-real-problems-real-revenue-the-nexobi-case-for-ai-driven-attribution)
+19. [Probabilistic Attribution — Walk-ins & Referrals](#19-probabilistic-attribution--filling-the-walk-in-and-referral-gap)
+
+---
+
+### Quick Reference — Find What You Need
+
+| I want to… | Go to |
+|---|---|
+| Understand the core attribution problem | §2, §17 |
+| See a patient journey end-to-end | §3 |
+| Know which platforms connect to NexoBI | §4, §5, §14 |
+| Set up the data pipeline | §6, §7, §8 |
+| Handle HIPAA + EHR safely | §11, §16.2 |
+| Solve organic search attribution | §12, §13, §15 |
+| Choose the right CRM | §18 (CRM Decision section) |
+| Understand the full healthcare landscape | §16 |
+| See real client problems + solutions | §18 |
+| Fill walk-in and referral attribution gaps | §19 |
+| Build the AI Agent architecture | §18 (AI Agent section) |
 
 ---
 
