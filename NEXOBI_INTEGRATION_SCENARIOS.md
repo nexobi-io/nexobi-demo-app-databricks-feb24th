@@ -2787,3 +2787,640 @@ def flag_technical_issues(screaming_frog_csv: str,
 
 *NexoBI · Integration Scenarios · February 2026*
 *Last updated: February 27, 2026 — Section 15 added (SEO / Organic Search Real-World Scenarios)*
+
+---
+
+---
+
+## 16. Healthcare Marketing — Broader Vertical Coverage
+
+> Everything in this document applies beyond dental. NexoBI's architecture — EHR de-identification, attribution bridge, server-side pixels, Delta table schema — works across all healthcare specialties. This section maps the landscape: which EHR each specialty uses, how their marketing mix differs, how their revenue model changes the KPIs, and what NexoBI surfaces for each.
+
+---
+
+### 16.1 The Healthcare Marketing Landscape
+
+Healthcare is not one market. It is a set of adjacent markets with different patient acquisition economics, different digital marketing channels, different EHR systems, and different regulatory sensitivity — even within HIPAA.
+
+```
+HEALTHCARE SPECIALTIES — MARKETING CHARACTERISTICS
+
+                     HIGH                    │
+                     PAID ADS                │  Aesthetics / MedSpa
+                     DEPENDENCE              │  LASIK / Vision Correction
+                                             │  Plastic Surgery / Cosmetic
+                                             │  Weight Loss / Bariatrics
+                     ────────────────────────┼────────────────────────
+                     HIGH                    │  Dental (Implants, Ortho)
+                     SEO                     │  Mental Health / Therapy
+                     DEPENDENCE              │  Dermatology
+                                             │  Chiropractic
+                                             │  Physical Therapy
+                     LOW                     │
+                                             │
+                         LOW TICKET      HIGH TICKET
+                         (< $500/visit)  (> $2,000 procedure)
+```
+
+| Specialty | Typical ticket | Primary channel | EHR | Insurance? | SEO difficulty |
+|---|---|---|---|---|---|
+| **Dental — Implants** | $3,000–$6,000 | Google Ads + SEO | Dentrix, Eaglesoft | Rarely | Medium |
+| **Dental — General** | $200–$800 | GBP + SEO + referral | Dentrix, Open Dental | Yes | Low |
+| **Mental Health / Therapy** | $120–$250/session | SEO + Psychology Today | SimplePractice, TherapyNotes | Yes | Low–Medium |
+| **MedSpa / Aesthetics** | $500–$3,000/treatment | Instagram + Google Ads + email | Nextech, Aesthetic Record | No (cash pay) | Medium |
+| **LASIK / Vision** | $4,000–$6,000 | Google Ads + retargeting | Nextech, Modernizing Medicine | No (elective) | High |
+| **Plastic Surgery / Cosmetic** | $5,000–$20,000 | Google Ads + Instagram + SEO | Nextech, Modernizing Medicine | No (elective) | High |
+| **Orthopedics / Sports Med** | $200–$5,000 | SEO + GBP + referral | Epic, athenahealth, WebPT | Yes | Medium |
+| **Physical Therapy** | $150–$300/visit | GBP + SEO + referral | WebPT, Jane App, Kareo | Yes | Low |
+| **Dermatology** | $200–$2,000 | SEO + GBP + Google Ads | Modernizing Medicine (EMA) | Mix | Medium |
+| **Weight Loss / Bariatrics** | $8,000–$25,000 | Google Ads + SEO + email | Epic, Allscripts | Partial | Medium |
+| **Chiropractic** | $60–$150/visit | GBP + SEO | ChiroTouch, Jane App | Mix | Low |
+| **Urgent Care** | $150–$400/visit | GBP + "near me" SEO | Experity, Epic | Yes | Low |
+| **Fertility / IVF** | $15,000–$25,000/cycle | SEO + content + community | Epic, athenahealth | Rarely | High |
+
+---
+
+### 16.2 EHR Ecosystem by Specialty
+
+Different specialties standardized on different EHR platforms. NexoBI connects to all of them using the same de-identification pattern — only the field names and connection method change.
+
+#### Mental Health — SimplePractice & TherapyNotes
+
+**Who uses it:** Solo therapists, group practices, psychiatric NPs, counseling centers.
+
+**What these systems track:**
+- Appointment date, session type (individual/group/couples)
+- Session status (scheduled, attended, no-show, late cancel)
+- Fee, insurance payment, copay, balance due
+- Referral source (self-referral, Psychology Today, therapist referral, physician)
+- Clinician assigned
+
+**SimplePractice API:**
+```python
+import requests
+
+SP_TOKEN = "<simplepractice_api_token>"
+
+def fetch_simplepractice_appointments(start: str, end: str) -> list:
+    resp = requests.get(
+        "https://api.simplepractice.com/v1/appointments",
+        headers={"Authorization": f"Bearer {SP_TOKEN}"},
+        params={
+            "filter[date][gte]": start,
+            "filter[date][lte]": end,
+            # Request ONLY non-PHI fields
+            "fields[appointments]": "date,status,appointment_type,"
+                                    "referral_source,fee,duration"
+            # NOT: client_id, client_name, diagnosis, notes, insurance_id
+        }
+    )
+    return resp.json().get("data", [])
+
+# De-identified aggregate → NexoBI schema:
+# data_source  = referral_source (e.g. "Psychology Today", "Google Organic")
+# total_revenue= fee × attended sessions
+# booked       = scheduled count
+# attended     = attended count
+# treatment    = session_type (individual / group)
+```
+
+**NexoBI KPIs for mental health:**
+```
+Standard NexoBI column  → Mental health meaning
+─────────────────────────────────────────────────
+booked                  → sessions scheduled
+attended                → sessions held (billed)
+total_revenue           → fees collected (net of insurance)
+total_cost              → marketing spend (Google Ads, Psychology Today listing)
+show_rate               → session attendance rate (vs no-show)
+leads                   → new client inquiries
+conversion_rate         → inquiries → intake appointment %
+```
+
+**Psychology Today directory listing → NexoBI:**
+```
+Psychology Today is the dominant organic directory for therapists.
+Monthly listing fee: $29.95–$54.95/month depending on plan.
+
+UTM on the PT listing website link:
+  ?utm_source=psychology-today&utm_medium=directory&utm_campaign=therapist-listing
+
+→ data_source = "Psychology Today"
+→ NexoBI shows: 12 inquiries, 9 intakes, 8 ongoing clients,
+  avg 22 sessions at $150 = $3,300 LTV per PT client
+→ ROAS: $3,300 LTV × 8 clients / $55 listing fee = 480x
+```
+
+---
+
+#### MedSpa / Aesthetics — Nextech & Aesthetic Record
+
+**Who uses it:** MedSpas, cosmetic injectors, laser clinics, IV therapy centers.
+
+**What makes this specialty different:**
+- **Cash pay only** — no insurance, full revenue is collected at service
+- **Repeat treatment model** — Botox every 3–4 months, membership programs, skincare retail
+- **Instagram and TikTok** are primary organic channels (before/after content)
+- **Email and SMS** are extremely high-ROAS for retention (existing patients)
+- **High LTV** — a single Botox client may spend $8,000–$15,000/year
+
+**Nextech API:**
+```python
+import requests
+
+NT_BASE  = "https://api.nextech.com/v1"
+NT_TOKEN = "<nextech_access_token>"
+
+def fetch_nextech_appointments(start: str, end: str) -> list:
+    resp = requests.get(
+        f"{NT_BASE}/appointments",
+        headers={"Authorization": f"Bearer {NT_TOKEN}"},
+        params={
+            "startDate": start,
+            "endDate":   end,
+            # Request only non-PHI operational fields
+            "select": "appointmentDate,status,serviceType,"
+                      "referralSource,serviceRevenue,isNewPatient"
+            # NOT: patientName, dob, medicalHistory, photos
+        }
+    )
+    return resp.json().get("appointments", [])
+```
+
+**NexoBI schema adaptations for MedSpa:**
+```python
+# MedSpa adds these columns to the standard schema
+MEDSPA_EXTRA_COLS = {
+    "is_new_patient":  bool,     # new vs returning — key for LTV tracking
+    "service_type":    str,      # "Botox", "Filler", "Laser", "IV Therapy"
+    "membership_tier": str,      # Bronze / Silver / Gold membership
+    "retail_revenue":  float,    # skincare product sales at checkout
+}
+
+# Key derived metric:
+# patient_ltv = sum(total_revenue) where patient_id GROUP (de-identified as cohort)
+# cohort: new patients acquired in month M, track their revenue over 12 months
+```
+
+**Instagram + TikTok organic → NexoBI:**
+```
+Problem: Instagram and TikTok organic posts drive DM inquiries and
+profile link clicks — none of which carry UTM parameters natively.
+
+Fix:
+1. Link in bio (Linktree or direct): add UTM to every link
+   https://medspamiamifl.com?utm_source=instagram&utm_medium=social&utm_campaign=organic_bio
+
+2. "Link in bio" call-to-action in posts → tracked via bio link clicks
+
+3. Instagram Stories "swipe up" / link sticker:
+   Each story link = unique UTM per campaign
+   utm_content=botox-before-after-reel_feb14
+
+4. DM inquiries: manually logged in CRM as source=Instagram/DM
+   GoHighLevel has an Instagram DM integration (Meta Business account required)
+
+→ NexoBI: data_source = "Instagram", channel_group = "Social – Organic"
+  Separate from paid Meta Ads (channel_group = "Paid Social")
+```
+
+**MedSpa-specific NexoBI AI questions:**
+- *"What is the 12-month LTV of patients acquired through Instagram vs Google Ads?"*
+- *"Which service (Botox, filler, laser) has the highest rebooking rate?"*
+- *"How much of this month's revenue came from returning patients vs new patients?"*
+- *"What's the average number of visits before a new patient converts to a membership?"*
+
+---
+
+#### LASIK / Vision Correction — Long Consideration Cycle
+
+**Who uses it:** LASIK centers, refractive surgery practices, ophthalmology groups.
+
+**What makes this specialty different:**
+- **Extremely long consideration cycle** — patients research LASIK for 6–18 months before booking
+- **High CPCs** on Google Ads ($25–$65 per click for "LASIK miami") — very competitive
+- **Financing messaging** is critical — "as low as $99/month" converts better than "$4,500 total"
+- **Free consultation model** — the funnel is: click → free consultation → procedure booking → surgery date
+- **EHR:** Nextech (most common), Modernizing Medicine, practice-built systems
+
+**The LASIK funnel in NexoBI:**
+```
+Standard columns          LASIK meaning
+─────────────────────────────────────────────────
+leads                  → free consultation requests
+booked                 → consultations completed
+attended               → procedures performed
+conversion_rate        → consultation → procedure rate (key metric, typically 25–40%)
+total_cost             → Google Ads spend + content spend
+total_revenue          → procedure revenue (avg $4,400 per eye pair)
+```
+
+**The retargeting dependency:**
+```
+LASIK patients visit the site 4–7 times before booking a consultation.
+Without retargeting attribution, the last-click model over-credits
+the final ad and under-credits the first blog post or comparison page
+that started the consideration.
+
+NexoBI first-touch attribution (from attribution cookie):
+  Patient #1: first touch = organic blog "LASIK vs glasses cost"
+              last touch  = Google Ads retargeting ad
+              Procedure revenue = $4,400
+  → First-touch model: credits organic blog
+  → Last-touch model: credits Google Ads retargeting
+
+NexoBI shows BOTH:
+  attr_first_source = "Organic Search"
+  attr_last_source  = "Google Ads"
+  → Practice can see: organic content starts the journey,
+    paid retargeting closes it. Both channels needed.
+```
+
+---
+
+#### Physical Therapy — Referral-Heavy Model
+
+**Who uses it:** PT clinics, sports rehab centers, post-surgical rehab.
+
+**What makes this specialty different:**
+- **Physician referral** is the #1 patient acquisition channel — not digital marketing
+- **Insurance-based** — revenue per visit is fixed by payer mix, not procedure
+- **Repeat visit model** — a single patient generates 8–20 visits over a treatment episode
+- **GBP + local SEO** matter for self-referral patients (people who choose their own PT)
+- **EHR:** WebPT (most widely used in PT), Jane App, Kareo
+
+**WebPT → NexoBI:**
+```python
+# WebPT has a reporting API — pull visit/attendance data without PHI
+# WebPT API documentation: developer.webpt.com
+
+def fetch_webpt_visits(start: str, end: str) -> list:
+    resp = requests.get(
+        "https://api.webpt.com/v2/appointments",
+        headers={"Authorization": f"Bearer {WEBPT_TOKEN}"},
+        params={
+            "date_from": start,
+            "date_to":   end,
+            "fields":    "visit_date,visit_status,referral_source,"
+                         "visit_type,billed_amount,paid_amount"
+            # NOT: patient_name, dob, diagnosis, plan_of_care
+        }
+    )
+    return resp.json()
+
+# Referral source in PT context:
+# "Physician Referral"  → data_source = "Physician Referral"
+# "Self Referral"       → data_source = "Organic Search" or "Google Business Profile"
+# "Google Ads"          → data_source = "Google Ads"
+# "Insurance List"      → data_source = "Insurance Directory"
+```
+
+**The PT marketing insight NexoBI surfaces:**
+```
+data_source          leads  booked  attended  revenue   CPL
+Physician Referral   47     44      38        $22,800   $0
+Google Business Prof 28     21      17        $10,200   $0
+Google Ads           19     12      9         $5,400    $63
+Insurance Directory  14     12      11        $6,600    $0
+
+Insight: Physician referral delivers 2.2x the revenue of Google Ads
+at zero acquisition cost. NexoBI recommendation: invest in physician
+relationship marketing (lunch & learns, referral tracking) before
+scaling Google Ads spend.
+```
+
+---
+
+#### Mental Health — HIPAA + Sensitivity at a Higher Level
+
+Mental health practices face **stricter practical sensitivity** even within HIPAA. A patient's name appearing in connection with a mental health diagnosis — even accidentally — creates reputational risk and potential discrimination.
+
+**Additional guardrails for mental health specifically:**
+
+```
+MENTAL HEALTH EXTRA GUARDRAILS (beyond standard HIPAA)
+
+1. NO retargeting pixels on therapy-specific pages
+   → Pages like /services/depression-therapy, /services/anxiety-treatment
+     must NEVER have Google or Meta pixels
+   → Even with CAPI/server-side, these page visits should not be
+     reported as conversions to ad platforms
+   → Implement URL exclusion rules in Tag Manager:
+     "Do not fire ANY tags on URLs containing:
+      /depression, /anxiety, /trauma, /ptsd, /addiction, /eating-disorder"
+
+2. NO custom audiences from site visitors on these pages
+   → Do not build retargeting audiences from mental health page visitors
+   → Meta and Google ad policies prohibit targeting based on
+     health conditions — this is also a platform policy issue
+
+3. Inquiry forms — additional encryption
+   → Mental health inquiry forms should use end-to-end encryption
+   → Consider a HIPAA-compliant form service (IntakeQ, JotForm HIPAA)
+     instead of standard GoHighLevel/HubSpot forms
+
+4. Psychology Today and directory listings
+   → These are acceptable referral sources — patients self-select
+   → UTM tracking on PT links is fine; it describes where they
+     clicked from, not what condition they have
+
+5. NexoBI schema — no condition-level data ever
+   → NexoBI only sees: date, source, leads, booked, attended, revenue
+   → Specialty type (therapy vs psychiatry vs group) is the deepest
+     granularity allowed — never diagnosis category
+```
+
+---
+
+### 16.3 Channel Mix by Specialty — What Actually Works
+
+The marketing channel that dominates varies dramatically by specialty. NexoBI's data schema handles all of them — the `data_source` and `channel_group` columns flex to whatever sources are active.
+
+| Channel | Dental | Mental Health | MedSpa | LASIK | Physical Therapy | Urgent Care |
+|---|---|---|---|---|---|---|
+| **Google Ads** | ⭐⭐⭐ | ⭐ | ⭐⭐ | ⭐⭐⭐ | ⭐ | ⭐⭐ |
+| **Google Business Profile** | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐⭐ |
+| **Organic Search (Blog/SEO)** | ⭐⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐⭐ | ⭐ |
+| **Meta / Instagram Ads** | ⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐ | ⭐ |
+| **Instagram Organic** | ⭐ | ⭐ | ⭐⭐⭐ | ⭐ | ⭐ | — |
+| **Email / SMS** | ⭐⭐ | ⭐ | ⭐⭐⭐ | ⭐⭐ | ⭐ | ⭐ |
+| **Physician Referral** | ⭐ | ⭐⭐ | — | — | ⭐⭐⭐ | ⭐⭐ |
+| **Psychology Today / Directory** | — | ⭐⭐⭐ | — | — | — | — |
+| **Healthgrades / Zocdoc** | ⭐⭐ | ⭐ | — | — | ⭐⭐ | ⭐⭐ |
+| **TikTok Organic** | — | — | ⭐⭐ | — | — | — |
+| **Insurance Directory** | — | ⭐⭐ | — | — | ⭐⭐ | ⭐⭐ |
+| **Retargeting** | ⭐ | — | ⭐⭐ | ⭐⭐⭐ | — | — |
+
+⭐⭐⭐ = dominant channel · ⭐⭐ = significant · ⭐ = minor · — = not relevant
+
+---
+
+### 16.4 Revenue Model Differences — How NexoBI Schema Adapts
+
+Not every specialty bills the same way. NexoBI's schema needs to flex.
+
+#### Visit-Based Revenue (PT, Chiropractic, Mental Health)
+```
+Each visit = one revenue event
+Patient generates revenue across many visits over weeks/months
+
+NexoBI tracks:
+  booked    = appointments scheduled this period
+  attended  = visits completed this period
+  revenue   = net collected this period (after insurance adj.)
+
+Key metric: Revenue per completed visit
+  mental health: $120–$250/visit
+  PT:            $80–$180/visit (net of insurance)
+  chiropractic:  $60–$120/visit
+
+Patient LTV = avg visits per episode × net revenue per visit
+  PT episode: 12 visits × $120 = $1,440 LTV
+  Mental health ongoing client: 52 sessions × $150 = $7,800/year
+```
+
+#### Procedure-Based Revenue (Dental Implants, LASIK, Plastics, Bariatrics)
+```
+One large transaction per patient (or per procedure)
+Long consideration cycle, high ticket, low volume
+
+NexoBI tracks:
+  leads     = consultation requests / inquiries
+  booked    = consultations completed
+  attended  = procedures performed
+  revenue   = procedure fee collected
+
+Key metric: Revenue per procedure + case acceptance rate
+  LASIK:     $4,400 per bilateral procedure
+  implants:  $3,500–$6,000 per implant
+  rhinoplasty: $8,000–$15,000
+
+Funnel conversion that matters most:
+  consultation → procedure (case acceptance rate)
+  target: 30–45% for elective procedures
+```
+
+#### Membership / Recurring Revenue (MedSpa, Concierge Medicine, Wellness)
+```
+Monthly recurring model — patients pay for a membership tier
+that includes a set number of treatments per year
+
+NexoBI tracks:
+  new_users   = new memberships started
+  revenue     = monthly recurring revenue (MRR)
+  attended    = treatments delivered this month
+
+New columns needed for membership model:
+  membership_tier   = Bronze / Silver / Gold
+  mrr               = monthly recurring revenue per cohort
+  churn_count       = memberships cancelled this period
+  ltv_12mo          = avg revenue per member over 12 months
+
+MedSpa example:
+  Silver membership: $299/month = $3,588/year
+  Google Ads cost to acquire: $180
+  LTV ROAS: 3,588 / 180 = 19.9x
+```
+
+#### Insurance-Based Revenue (General Medicine, PT, Mental Health)
+```
+Revenue is collected from insurer + patient copay
+Net collected ≠ billed — write-offs and adjustments are significant
+
+NexoBI tracks:
+  total_revenue = net_collected (after insurance adjustment)
+                 NOT gross_billed (misleading)
+
+Columns to add:
+  gross_billed    = what was charged
+  insurance_paid  = what insurer remitted
+  patient_copay   = patient's share collected
+  adjustment      = contractual write-offs
+  net_collected   = total_revenue in NexoBI
+
+Marketing implication: for insurance practices, CAC should be
+calculated on net_collected, not gross_billed.
+A new PT patient billed at $3,200 but nets $1,440 after
+insurance — a very different ROAS calculation.
+```
+
+---
+
+### 16.5 Specialty-Specific SEO Scenarios
+
+The organic attribution problem (Section 13) exists across all specialties — but the content strategy, keyword intent, and directory landscape differ.
+
+#### Mental Health — Psychology Today + Content SEO
+
+**The organic channel that dominates:** Psychology Today directory + long-form SEO content
+
+```
+Top organic search intents in mental health:
+  "therapist near me"                    → GBP listing
+  "therapist for anxiety [city]"         → PT directory + local SEO
+  "online therapist accepting insurance" → content + GSC
+  "how to find a therapist"              → top-of-funnel blog
+  "CBT vs DBT therapy"                   → decision-stage blog
+
+Psychology Today profile → NexoBI:
+  utm_source=psychology-today
+  utm_medium=directory
+  data_source = "Psychology Today"
+
+Monthly PT listing cost: $29.95 – $54.95
+Average inquiries per month: 8–18 (varies heavily by location/profile quality)
+Average LTV per client: $3,000–$8,000 (ongoing therapy)
+Effective ROAS: 50x – 200x
+
+NexoBI AI: "Your Psychology Today listing generated 11 new client
+intakes last month at $150/session. At an average of 28 sessions
+before natural termination, that's $46,200 in projected LTV
+from a $55 listing — an 840x return."
+```
+
+#### MedSpa — Before/After Content + Instagram Organic
+
+```
+MedSpa organic content strategy:
+  Service pages: /botox-miami, /lip-filler-miami, /cool-sculpting-miami
+  Blog: "how long does Botox last", "filler vs Botox"
+  Instagram: before/after reels — highest-converting organic content type
+
+Attribution for Instagram organic:
+  Link in bio → website with UTM
+  Story link → unique UTM per story campaign
+  DM inquiry → manually tagged in CRM as "Instagram – DM"
+
+Top-converting organic content for MedSpa (typical):
+  /services/botox       CVR: 6.2%   Rev/session: $680   Rev/click: $42
+  /blog/botox-cost      CVR: 9.1%   Rev/session: $680   Rev/click: $62
+  /before-after/lips    CVR: 14.3%  Rev/session: $850   Rev/click: $122
+
+Before/after gallery pages are the highest-converting organic content
+in aesthetics — patients seeing results converts at 2–3x service pages.
+```
+
+#### LASIK — Long-Tail Comparison Content
+
+```
+LASIK organic keyword strategy:
+  High-intent: "LASIK surgery miami" → competitive, expensive in paid
+  Long-tail decision: "LASIK vs PRK which is better"
+                      "am I a good candidate for LASIK"
+                      "LASIK cost vs contact lens cost calculator"
+                      "LASIK reviews miami"
+
+Long-tail content converts BETTER than head terms for LASIK because:
+  → Patient is in research phase — information converts to consultation
+  → Less competition in organic rankings
+  → Head terms cost $45–$65/click in Google Ads; organic = $0
+
+NexoBI surfaces:
+  /blog/lasik-vs-prk     → 44 organic clicks → 6 consultation bookings → 2 procedures → $8,800
+  /blog/lasik-candidacy  → 89 organic clicks → 11 consultation bookings → 4 procedures → $17,600
+  /services/lasik        → 203 organic clicks → 4 consultation bookings → 1 procedure → $4,400
+
+Insight: The candidacy blog (who qualifies) generates 4x more revenue
+per organic click than the main LASIK service page.
+```
+
+#### Urgent Care — "Near Me" = GBP Everything
+
+```
+Urgent care has the simplest organic strategy and the most immediate revenue:
+  Dominant query: "urgent care near me" (GBP local pack)
+  Secondary: "urgent care open now", "walk-in clinic [city]"
+
+GBP is 80%+ of organic patient acquisition for urgent care.
+Blog/content SEO is secondary — patients need care now, not research.
+
+What matters in GBP for urgent care:
+  ✓ Hours accurate (especially holidays and weekends)
+  ✓ Wait time posted (Google Q&A or GBP posts)
+  ✓ Review score ≥ 4.3 (below this, CTR drops significantly)
+  ✓ Photos current (interior, team)
+  ✓ "Open now" status accurate in real-time
+
+NexoBI + GBP for urgent care:
+  data_source = "Google Business Profile"
+  daily GBP calls tracked via CallRail number on listing
+  walk-in patients tracked via Experity check-in source field
+
+AI question: "Which days and times are GBP calls highest?
+  Make sure staffing matches peak inquiry volume."
+  Answer: "Tuesday–Thursday 8–10am and 4–6pm. Lowest: Sunday 6–8pm."
+```
+
+---
+
+### 16.6 Universal NexoBI Data Sources — Across All Specialties
+
+These sources apply regardless of specialty. NexoBI's `data_source` picklist should be standardized across all clients:
+
+```python
+# Universal data_source picklist for all healthcare specialties
+UNIVERSAL_SOURCES = {
+    # Paid
+    "Google Ads":                  "Paid Search",
+    "Google Ads – Brand":          "Paid Search",
+    "Bing Ads":                    "Paid Search",
+    "Meta – Facebook":             "Paid Social",
+    "Meta – Instagram":            "Paid Social",
+    "TikTok Ads":                  "Paid Social",
+    "YouTube Ads":                 "Paid Video",
+    "LinkedIn Ads":                "Paid B2B",
+    # Organic
+    "Organic Search":              "Organic",
+    "Organic – Blog":              "Organic",
+    "Organic – Service Page":      "Organic",
+    "Google Business Profile":     "Local / Maps",
+    "Bing Places":                 "Local / Maps",
+    "Apple Maps":                  "Local / Maps",
+    # Social Organic
+    "Instagram – Organic":         "Social – Organic",
+    "Facebook – Organic":          "Social – Organic",
+    "TikTok – Organic":            "Social – Organic",
+    # Directories (universal)
+    "Healthgrades":                "Directory",
+    "Zocdoc":                      "Directory",
+    "Yelp":                        "Directory",
+    "WebMD":                       "Directory",
+    "Vitals":                      "Directory",
+    "US News Health":              "Directory",
+    # Mental health specific
+    "Psychology Today":            "Directory",
+    "TherapyDen":                  "Directory",
+    "GoodTherapy":                 "Directory",
+    # Communications
+    "Email – Reactivation":        "Email",
+    "Email – Newsletter":          "Email",
+    "SMS – Recall":                "SMS",
+    "SMS – Reminder":              "SMS",
+    # Referral
+    "Referral – Patient":          "Referral",
+    "Referral – Physician":        "Referral",
+    "Referral – Provider":         "Referral",
+    "Referral – Partner":          "Referral",
+    # Insurance / Payer directories
+    "Insurance Directory":         "Insurance",
+    "Zocdoc – Insurance":          "Insurance",
+    # Direct
+    "Direct":                      "Direct",
+    "Other":                       "Other",
+}
+```
+
+---
+
+### 16.7 Sales Talking Points — Broader Healthcare
+
+> *"NexoBI isn't a dental product. We built it with dental as the prototype because the funnel is complex enough to prove the architecture — paid ads, CRM, a practice management system, insurance, attendance rates. But the exact same system works for a therapy group, a MedSpa, a LASIK center, or a multi-location urgent care chain. The EHR changes. The ad platforms change. The revenue model changes. The core problem — your marketing data and your clinical outcome data live in separate silos and nobody connects them — is identical across every healthcare specialty."*
+
+> *"For a mental health group, NexoBI tells you which therapist directory listing generates clients that stay in therapy the longest — and what the LTV difference is between a Psychology Today lead and a Google Ads lead. For a MedSpa, it tells you whether Instagram before/after reels or Google Ads are generating members with higher 12-month retention. For LASIK, it shows which long-form comparison blog started the consideration journey that led to a $4,400 procedure six months later. Same platform. Same AI Agent. Different EHR connection. Different source picklist."*
+
+> *"The compliance architecture doesn't change either. PHI stays in the EHR. De-identified aggregates flow to Databricks. NexoBI's AI sees revenue counts and sources — never patient names, never diagnoses. That's true whether the EHR is Dentrix, SimplePractice, Nextech, WebPT, or Epic."*
+
+---
+
+*NexoBI · Integration Scenarios · February 2026*
+*Last updated: February 27, 2026 — Section 16 added (Broader Healthcare Vertical Coverage)*
