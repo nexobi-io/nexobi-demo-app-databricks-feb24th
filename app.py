@@ -1092,19 +1092,40 @@ def render_command_center():
     # ── Section title ─────────────────────────────────────
     st.markdown('<div class="section-title">Command Center</div>', unsafe_allow_html=True)
 
-    # ── Health banner ─────────────────────────────────────
-    st.markdown(f'''
-<div class="cmd-health">
-  <div class="cmd-score-ring" style="border-color:{sc_color};">
-    <div class="cmd-score-num" style="color:{sc_color};">{score}</div>
-    <div class="cmd-score-den">/100</div>
+    # ── Health banner — stats swap based on view mode ─────
+    if practice_mode:
+        # CRM view: Revenue · New Patients · Show Rate · Total Appointments
+        new_patients  = float(base["conversions"].sum() or 0)
+        total_appts   = float(base["booked"].sum() or 0)
+        p_patients    = float(prev_b["conversions"].sum() or 0)
+        p_appts       = float(prev_b["booked"].sum() or 0)
+        pat_growth    = safe_div(new_patients - p_patients, max(abs(p_patients), 0.01)) * 100
+        appt_growth   = safe_div(total_appts - p_appts, max(abs(p_appts), 0.01)) * 100
+        show_clr      = '#009952' if show_rate >= BENCH_SHOW_RATE else '#D97706'
+        banner_stats  = f'''
+  <div class="cmd-health-stat">
+    <div class="cmd-health-label">Revenue</div>
+    <div class="cmd-health-val">{money(rev)}</div>
+    <div class="cmd-health-sub">{delta_html(rev_growth, has_prev)}</div>
   </div>
-  <div style="flex:2;min-width:160px;">
-    <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:.95rem;font-weight:800;color:#0F172A;margin-bottom:2px;">
-      Platform Health &nbsp;<span style="color:{sc_color};font-size:.8rem;font-weight:700;">{sc_label}</span>
-    </div>
-    <div style="font-size:.74rem;color:#64748B;">{period_label} &nbsp;·&nbsp; {period_days}-day window &nbsp;·&nbsp; {len(base):,} records</div>
+  <div class="cmd-health-stat">
+    <div class="cmd-health-label">New Patients</div>
+    <div class="cmd-health-val">{fmt(new_patients)}</div>
+    <div class="cmd-health-sub">{delta_html(pat_growth, has_prev)}</div>
   </div>
+  <div class="cmd-health-stat">
+    <div class="cmd-health-label">Show Rate</div>
+    <div class="cmd-health-val">{pct(show_rate)}</div>
+    <div class="cmd-health-sub" style="color:{show_clr};">{'▲ Above' if show_rate>=BENCH_SHOW_RATE else '▼ Below'} {BENCH_SHOW_RATE:.0f}% avg</div>
+  </div>
+  <div class="cmd-health-stat">
+    <div class="cmd-health-label">Total Appointments</div>
+    <div class="cmd-health-val">{fmt(total_appts)}</div>
+    <div class="cmd-health-sub">{delta_html(appt_growth, has_prev)}</div>
+  </div>'''
+    else:
+        # Marketing view: Revenue · ROAS · Cost/Lead · Show Rate
+        banner_stats = f'''
   <div class="cmd-health-stat">
     <div class="cmd-health-label">Revenue</div>
     <div class="cmd-health-val">{money(rev)}</div>
@@ -1124,7 +1145,21 @@ def render_command_center():
     <div class="cmd-health-label">Show Rate</div>
     <div class="cmd-health-val">{pct(show_rate)}</div>
     <div class="cmd-health-sub" style="color:{'#009952' if show_rate>=BENCH_SHOW_RATE else '#D97706'};">{'▲ Above' if show_rate>=BENCH_SHOW_RATE else '▼ Below'} {BENCH_SHOW_RATE:.0f}% avg</div>
+  </div>'''
+
+    st.markdown(f'''
+<div class="cmd-health">
+  <div class="cmd-score-ring" style="border-color:{sc_color};">
+    <div class="cmd-score-num" style="color:{sc_color};">{score}</div>
+    <div class="cmd-score-den">/100</div>
   </div>
+  <div style="flex:2;min-width:160px;">
+    <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:.95rem;font-weight:800;color:#0F172A;margin-bottom:2px;">
+      Platform Health &nbsp;<span style="color:{sc_color};font-size:.8rem;font-weight:700;">{sc_label}</span>
+    </div>
+    <div style="font-size:.74rem;color:#64748B;">{period_label} &nbsp;·&nbsp; {period_days}-day window &nbsp;·&nbsp; {len(base):,} records</div>
+  </div>
+  {banner_stats}
 </div>
 ''', unsafe_allow_html=True)
 
@@ -1227,66 +1262,6 @@ def render_marketing():
         st.dataframe(df_light(jd), use_container_width=True, hide_index=True, height=df_height(len(jd)))
 
 def render_practice():
-    # ── KPIs ───────────────────────────────────────────────
-    np_ = float(CUR["conversions"].sum() or 0)
-    bk  = float(CUR["booked"].sum() or 0)
-    at  = float(CUR["attended"].sum() or 0)
-    rev = float(CUR["total_revenue"].sum() or 0)
-
-    prev_p  = float(PREV["conversions"].sum() or 0)
-    prev_r  = float(PREV["total_revenue"].sum() or 0)
-    prev_at = float(PREV["attended"].sum() or 0)
-    prev_bk = float(PREV["booked"].sum() or 0)
-    has_prev = len(PREV) > 0
-
-    show       = safe_div(at, bk) * 100
-    rc         = safe_div(rev - prev_r, max(abs(prev_r), 0.01)) * 100
-    pc         = safe_div(np_ - prev_p, max(abs(prev_p), 0.01)) * 100
-    bench_diff = show - BENCH_SHOW_RATE
-    bench_clr  = GREEN_DK if bench_diff >= 0 else RED
-    bench_lbl  = (
-        f'<span style="color:{bench_clr};font-size:.8rem;font-weight:700;">'
-        f'{"▲" if bench_diff >= 0 else "▼"} {abs(bench_diff):.1f}pp vs {BENCH_SHOW_RATE:.0f}% avg</span>'
-    )
-
-    _t1, _t2, _t3 = st.columns(3, gap="medium")
-    with _t1:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">New Patients</div>'
-                    f'<div class="metric-value">{fmt(np_)}</div>'
-                    f'<div class="metric-meta">{delta_html(pc, has_prev)}</div></div>',
-                    unsafe_allow_html=True)
-    with _t2:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Show Rate</div>'
-                    f'<div class="metric-value">{pct(show)}</div>'
-                    f'<div class="metric-meta">{bench_lbl}</div></div>',
-                    unsafe_allow_html=True)
-    with _t3:
-        st.markdown(f'<div class="metric-card"><div class="metric-label">Revenue</div>'
-                    f'<div class="metric-value">{money(rev)}</div>'
-                    f'<div class="metric-meta">{delta_html(rc, has_prev)}</div></div>',
-                    unsafe_allow_html=True)
-
-    # ── Attendance Trend ───────────────────────────────────
-    st.markdown('<div class="section-title">Attendance Trend</div>', unsafe_allow_html=True)
-    trend = (CUR.groupby("date", as_index=False)
-               .agg(booked=("booked","sum"), attended=("attended","sum"))
-               .sort_values("date"))
-    if len(trend) > 0:
-        trend["date"] = pd.to_datetime(trend["date"])
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=trend["date"], y=trend["booked"],
-                                 name="Booked", mode="lines",
-                                 line=dict(color=BLUE, width=2.5)))
-        fig.add_trace(go.Scatter(x=trend["date"], y=trend["attended"],
-                                 name="Attended", mode="lines",
-                                 line=dict(color=GREEN, width=2.5),
-                                 fill="tonexty",
-                                 fillcolor="rgba(0,192,107,0.07)"))
-        fig.update_layout(**base_layout("Booked vs Attended", 260))
-        st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-        st.markdown('</div>', unsafe_allow_html=True)
-
     # ── Top Treatments ─────────────────────────────────────
     st.markdown('<div class="section-title">Top Treatments</div>', unsafe_allow_html=True)
     if "treatment" in CUR.columns:
