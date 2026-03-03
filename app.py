@@ -1753,14 +1753,27 @@ def _followup_chips(q: str) -> list:
 
 def render_ai():
     # ── Session state init ───────────────────────────────────
-    if "ai_history" not in st.session_state:
-        st.session_state.ai_history = []
-    if "ai_nonce" not in st.session_state:
-        st.session_state.ai_nonce = 0
+    if "ai_history"      not in st.session_state: st.session_state.ai_history      = []
+    if "ai_nonce"        not in st.session_state: st.session_state.ai_nonce        = 0
+    if "ai_pending_q"    not in st.session_state: st.session_state.ai_pending_q    = None
+    if "ai_answer_fresh" not in st.session_state: st.session_state.ai_answer_fresh = False
+
     has_history = len(st.session_state.ai_history) > 0
     _csv_mode   = (_ACTIVE_MODE != "databricks")
 
-    # ── EMPTY STATE: hero only ───────────────────────────────
+    # ── Drain pending question (insight cards / follow-up chips) ─
+    _pending = st.session_state.ai_pending_q
+    if _pending:
+        st.session_state.ai_pending_q = None
+        with st.spinner("Thinking…"):
+            result = ai_query_csv(_pending) if _csv_mode else ai_query_ask(_pending)
+        st.session_state.ai_history.insert(0, {"q": _pending, **result})
+        if len(st.session_state.ai_history) > 10:
+            st.session_state.ai_history = st.session_state.ai_history[:10]
+        st.session_state.ai_answer_fresh = True
+        st.rerun()
+
+    # ── EMPTY STATE: hero + proactive insight cards ───────────
     if not has_history:
         st.markdown('''
 <div class="ai-hero-wrap">
@@ -1768,6 +1781,29 @@ def render_ai():
   <div class="ai-catch-sub">Get straight answers from your data. No dashboards needed.</div>
 </div>
 ''', unsafe_allow_html=True)
+
+        # Insight cards
+        try:
+            _insights = _ai_insights()
+            st.markdown('<div id="ai-insight-marker"></div>', unsafe_allow_html=True)
+            _ic1, _ic2, _ic3 = st.columns(3, gap="small")
+            for _col, _ins in zip([_ic1, _ic2, _ic3], _insights):
+                with _col:
+                    _btn_label = (
+                        f"{_ins['icon']}  {_ins['value']}\n"
+                        f"{_ins['label']}\n"
+                        f"{_ins['delta']}\n"
+                        f"→ Ask about this"
+                    )
+                    if st.button(
+                        _btn_label,
+                        key=f"ai_ins_{hash(_ins['question']) % 99991}",
+                        use_container_width=True
+                    ):
+                        st.session_state.ai_pending_q = _ins["question"]
+                        st.rerun()
+        except Exception:
+            pass  # silently skip if data not ready
 
     # ── Chat input (always rendered) ─────────────────────────
     st.markdown('<div id="ai-send-row"></div>', unsafe_allow_html=True)
@@ -1803,11 +1839,8 @@ def render_ai():
 
   function tick() {
     var ta = getTA();
-    /* If textarea not found or user is typing, wait and retry */
     if (!ta || ta.value.length > 0) { setTimeout(tick, 400); return; }
-
     var q = QUESTIONS[qIdx];
-
     if (deleting) {
       cIdx = Math.max(0, cIdx - 1);
       ta.setAttribute("placeholder", q.slice(0, cIdx));
@@ -1815,45 +1848,43 @@ def render_ai():
         deleting = false;
         qIdx = (qIdx + 1) % QUESTIONS.length;
         setTimeout(tick, T_PAUSE_START);
-      } else {
-        setTimeout(tick, T_DEL);
-      }
+      } else { setTimeout(tick, T_DEL); }
     } else {
       cIdx = Math.min(q.length, cIdx + 1);
       ta.setAttribute("placeholder", q.slice(0, cIdx));
       if (cIdx === q.length) {
         deleting = true;
         setTimeout(tick, T_PAUSE_END);
-      } else {
-        setTimeout(tick, T_TYPE);
-      }
+      } else { setTimeout(tick, T_TYPE); }
     }
   }
-
-  /* Wait for Streamlit to paint the textarea before starting */
   setTimeout(tick, 900);
 })();
 </script>
 """, height=0)
 
-    # ── Resolve question ─────────────────────────────────────
+    # ── Resolve typed question ────────────────────────────────
     run_q = user_q.strip() if ask and user_q.strip() else None
-
     if run_q:
         with st.spinner("Thinking…"):
             result = ai_query_csv(run_q) if _csv_mode else ai_query_ask(run_q)
         st.session_state.ai_history.insert(0, {"q": run_q, **result})
         if len(st.session_state.ai_history) > 10:
             st.session_state.ai_history = st.session_state.ai_history[:10]
+        st.session_state.ai_answer_fresh = True
         st.rerun()
 
     # ── Chat history ─────────────────────────────────────────
-    for item in st.session_state.ai_history:
+    is_fresh = st.session_state.ai_answer_fresh
+    if is_fresh:
+        st.session_state.ai_answer_fresh = False   # consume flag
+
+    for idx, item in enumerate(st.session_state.ai_history):
         q     = item.get("q", "")
         text  = item.get("text", "")
-        sql   = item.get("sql", "")
         df    = item.get("df")
         error = item.get("error")
+        animate_this = (idx == 0 and is_fresh)
 
         # User bubble
         st.markdown(f'<div class="ai-bubble-user"><span>{q}</span></div>', unsafe_allow_html=True)
@@ -1868,7 +1899,6 @@ def render_ai():
                 '</div>',
                 unsafe_allow_html=True
             )
-            # Still show chart from local CSV data if question is visual
             if _is_visual_question(q):
                 chart = _ai_chart(q)
                 if chart is not None:
@@ -1881,15 +1911,16 @@ def render_ai():
             st.error(f"AI error: {error}")
             continue
 
-        # AI response
+        # AI response bubble — invisible initially when animating
         if text:
+            _bubble_style = ' id="ai-bubble-fresh" style="opacity:0"' if animate_this else ''
             st.markdown(
                 '<div class="ai-msg-label">NexoBI AI</div>'
-                f'<div class="ai-bubble-ai">{text}</div>',
+                f'<div class="ai-bubble-ai"{_bubble_style}>{text}</div>',
                 unsafe_allow_html=True
             )
 
-        # Auto chart — only for explicitly visual questions
+        # Auto chart
         if _is_visual_question(q):
             chart = _ai_chart(q)
             if chart is not None:
@@ -1899,21 +1930,56 @@ def render_ai():
 
         # Data table
         if df is not None and not df.empty:
-            st.dataframe(
-                df_light(df),
-                use_container_width=True,
-                hide_index=True,
-                height=df_height(len(df))
-            )
+            st.dataframe(df_light(df), use_container_width=True, hide_index=True, height=df_height(len(df)))
 
-    # ── New chat — below dialogue, only when history exists ──
+        # ── Follow-up suggestion chips ───────────────────────
+        _chips = _followup_chips(q)
+        if _chips:
+            st.markdown('<div class="ai-followup-marker"></div>', unsafe_allow_html=True)
+            _chip_cols = st.columns(len(_chips))
+            for _ci, (_chip_col, _chip) in enumerate(zip(_chip_cols, _chips)):
+                with _chip_col:
+                    if st.button(_chip, key=f"ai_chip_{hash(q) % 99991}_{_ci}", use_container_width=True):
+                        st.session_state.ai_pending_q = _chip
+                        st.rerun()
+
+    # ── Streaming word-by-word reveal (fresh answer only) ────
+    if is_fresh:
+        components.html("""
+<script>
+(function(){
+  function stream(){
+    var el = window.parent.document.getElementById('ai-bubble-fresh');
+    if(!el){ setTimeout(stream, 200); return; }
+    var html = el.innerHTML;
+    el.innerHTML = '';
+    el.style.opacity = '1';
+    /* Tokenise: HTML tags appear instantly, words stream in */
+    var tokens = html.match(/(<[^>]+>|[^< \\t\\n]+|[ \\t\\n]+)/g) || [];
+    var i = 0;
+    function next(){
+      if(i >= tokens.length) return;
+      el.innerHTML += tokens[i];
+      var delay = (tokens[i] && tokens[i].charAt(0) === '<') ? 0 : 18;
+      i++;
+      setTimeout(next, delay);
+    }
+    next();
+  }
+  setTimeout(stream, 420);
+})();
+</script>
+""", height=0)
+
+    # ── New chat ──────────────────────────────────────────────
     if has_history:
         st.markdown('<div style="height:.6rem"></div>', unsafe_allow_html=True)
         _nc_gap, _nc_col = st.columns([8, 2])
         with _nc_col:
             if st.button("↺  New chat", key="ai_reset_compact", use_container_width=True):
-                st.session_state.ai_history = []
-                st.session_state.ai_nonce  += 1
+                st.session_state.ai_history      = []
+                st.session_state.ai_nonce       += 1
+                st.session_state.ai_answer_fresh = False
                 st.rerun()
 
 # ==========================================================
