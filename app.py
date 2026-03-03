@@ -1848,7 +1848,7 @@ html body textarea,
   line-height:1.5!important;resize:none!important;box-shadow:none!important;
 }
 html body textarea::placeholder,
-[data-testid="stTextArea"] textarea::placeholder{color:#94A3B8!important;-webkit-text-fill-color:#94A3B8!important;}
+[data-testid="stTextArea"] textarea::placeholder{color:#475569!important;-webkit-text-fill-color:#475569!important;font-size:.97rem!important;}
 html body textarea:focus,
 [data-testid="stTextArea"] textarea:focus{
   border-color:#00C06B!important;
