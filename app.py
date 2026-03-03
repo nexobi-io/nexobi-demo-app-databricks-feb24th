@@ -569,6 +569,11 @@ div[data-baseweb="base-input"]:focus-within{
 .refresh-wrap .stButton>button:hover{background:#E6F9F0!important;}
 
 
+/* Signal pill colours (used by Top Signals in Command Center) */
+.sb-pill-red{background:rgba(239,68,68,.10);color:#EF4444;}
+.sb-pill-amber{background:rgba(245,158,11,.12);color:#D97706;}
+.sb-pill-green{background:rgba(0,192,107,.10);color:#009952;}
+
 /* ==========================================================
    SIDEBAR — CLEAN, COMPACT, SUBTLE
    ========================================================== */
@@ -599,6 +604,20 @@ section[data-testid="stSidebar"] label {
 .stTabs [data-baseweb="tab-highlight"]{background:#00C06B!important;}
 .stTabs [data-baseweb="tab-border"]{background:#E2E8F0!important;}
 
+
+/* ===== INTELLIGENCE SIGNALS ===== */
+.sig-card{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;padding:11px 14px;position:relative;overflow:hidden;}
+.sig-card.sig-red{border-left:3.5px solid #EF4444;background:linear-gradient(90deg,rgba(239,68,68,.03) 0%,#FFFFFF 55%);}
+.sig-card.sig-amber{border-left:3.5px solid #F59E0B;background:linear-gradient(90deg,rgba(245,158,11,.04) 0%,#FFFFFF 55%);}
+.sig-card.sig-green{border-left:3.5px solid #00C06B;background:linear-gradient(90deg,rgba(0,192,107,.04) 0%,#FFFFFF 55%);}
+.sig-head{display:flex;align-items:flex-start;justify-content:space-between;gap:6px;margin-bottom:3px;}
+.sig-title{font-size:.8rem;font-weight:700;color:#0F172A;flex:1;line-height:1.3;}
+.sig-sev{font-size:.61rem;font-weight:800;padding:1px 7px;border-radius:999px;white-space:nowrap;flex-shrink:0;}
+.sig-sev-red{background:rgba(239,68,68,.10);color:#EF4444;}
+.sig-sev-amber{background:rgba(245,158,11,.12);color:#D97706;}
+.sig-sev-green{background:rgba(0,192,107,.10);color:#009952;}
+.sig-detail{font-size:.73rem;color:#64748B;line-height:1.35;margin-bottom:4px;}
+.sig-action{font-size:.71rem;color:#334155;line-height:1.35;padding-top:4px;border-top:1px solid rgba(0,0,0,.06);}
 
 /* ===== COMPLIANCE BADGES (header) ===== */
 .comply-badge{border-radius:999px;font-size:.63rem;font-weight:800;padding:2px 9px;letter-spacing:.04em;}
@@ -649,18 +668,39 @@ def list_unique(col: str):
 
 with st.sidebar:
 
-    # --- Data mode indicator (compact dot) ---
+    # --- Data mode badge + one-click switch ---
     _is_live = st.session_state.get("force_live_mode", False) and not bool(_FALLBACK_WARN)
-    _dot_color = "#C2410C" if _FALLBACK_WARN else ("#15803D" if _is_live else "#94A3B8")
-    _dot_label = "CSV (fallback)" if _FALLBACK_WARN else ("Live · Databricks" if _is_live else "Local CSV")
+    if _FALLBACK_WARN:
+        _badge_label  = "⚠ Live unavailable"
+        _badge_detail = "Fell back to local CSV"
+        _badge_bg, _badge_bd, _badge_fc = "#FFF7ED", "#FED7AA", "#C2410C"
+    elif _is_live:
+        _badge_label  = "🌐 Live · Databricks"
+        _badge_detail = "AI Agent active"
+        _badge_bg, _badge_bd, _badge_fc = "#F0FDF4", "#BBF7D0", "#15803D"
+    else:
+        _badge_label  = "📁 Local CSV"
+        _badge_detail = "AI Agent unavailable"
+        _badge_bg, _badge_bd, _badge_fc = "#F8FAFC", "#E2E8F0", "#475569"
+
     st.markdown(
-        f'<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;margin-bottom:6px;">'
-        f'<span style="width:6px;height:6px;border-radius:50%;background:{_dot_color};'
-        f'display:inline-block;flex-shrink:0;"></span>'
-        f'<span style="font-size:.67rem;color:#94A3B8;font-weight:500;">{_dot_label}</span>'
+        f'<div style="background:{_badge_bg};border:1px solid {_badge_bd};border-radius:8px;'
+        f'padding:7px 10px;margin-bottom:5px;">'
+        f'<div style="font-size:.71rem;font-weight:700;color:{_badge_fc};">{_badge_label}</div>'
+        f'<div style="font-size:.63rem;color:#94A3B8;margin-top:1px;">{_badge_detail}</div>'
         f'</div>',
         unsafe_allow_html=True
     )
+    st.markdown('<div class="sb-reset-wrap">', unsafe_allow_html=True)
+    _switch_lbl = "Switch to Local CSV →" if _is_live else "Switch to Live →"
+    if st.button(_switch_lbl, key="mode_switch_btn", use_container_width=True):
+        st.session_state["force_live_mode"] = not _is_live
+        try:
+            load_data_databricks.clear()
+        except Exception:
+            pass
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
     # --- Navigation ---
     page = st.radio("Navigation", ["Dashboard", "AI Agent"], key="nav")
@@ -788,8 +828,8 @@ visible_blocks = {
 if page == "Dashboard":
     st.sidebar.markdown("---")
     st.sidebar.markdown(
-        '<div style="font-size:.67rem;font-weight:700;color:#94A3B8;'
-        'letter-spacing:.07em;text-transform:uppercase;margin-bottom:.2rem;">'
+        '<div style="font-size:.7rem;font-weight:700;color:#94A3B8;'
+        'letter-spacing:.07em;text-transform:uppercase;margin-bottom:.3rem;">'
         'Your View</div>',
         unsafe_allow_html=True
     )
@@ -1167,26 +1207,22 @@ def render_command_center():
 
     # ── Top Signals (toggleable) ───────────────────────────
     if "signals" in visible_blocks:
-        st.markdown('<div class="section-title" style="margin-top:.5rem;">Signals</div>', unsafe_allow_html=True)
-        _dot_map = {"sb-pill-red": "#EF4444", "sb-pill-amber": "#F59E0B", "sb-pill-green": "#00C06B"}
-        _sig_rows = ""
-        for _si, (sev, pill_cls, title, detail, action) in enumerate(_alerts[:3]):
-            _dc = _dot_map.get(pill_cls, "#00C06B")
-            _border = "border-bottom:1px solid #F1F5F9;" if _si < 2 else ""
-            _sig_rows += (
-                f'<div style="display:flex;align-items:center;gap:12px;padding:8px 0;{_border}">'
-                f'<span style="width:7px;height:7px;border-radius:50%;background:{_dc};'
-                f'flex-shrink:0;display:inline-block;"></span>'
-                f'<span style="font-size:.81rem;font-weight:700;color:#0F172A;min-width:155px;'
-                f'flex-shrink:0;">{title}</span>'
-                f'<span style="font-size:.76rem;color:#64748B;">{detail}</span>'
-                f'</div>'
-            )
-        st.markdown(
-            f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
-            f'padding:6px 16px;margin-bottom:.5rem;">{_sig_rows}</div>',
-            unsafe_allow_html=True
-        )
+        st.markdown('<div class="section-title" style="margin-top:.5rem;">Top Signals</div>', unsafe_allow_html=True)
+        _cls_map = {
+            "sb-pill-red":   ("sig-red",   "sig-sev-red"),
+            "sb-pill-amber": ("sig-amber", "sig-sev-amber"),
+            "sb-pill-green": ("sig-green", "sig-sev-green"),
+        }
+        _s1, _s2, _s3 = st.columns(3, gap="small")
+        for col, (sev, pill_cls, title, detail, action) in zip([_s1, _s2, _s3], _alerts[:3]):
+            sig_cls, sev_cls = _cls_map.get(pill_cls, ("sig-green", "sig-sev-green"))
+            with col:
+                st.markdown(f'''<div class="sig-card {sig_cls}">
+  <div class="sig-head"><div class="sig-title">{title}</div><div class="sig-sev {sev_cls}">{sev}</div></div>
+  <div class="sig-detail">{detail}</div>
+  <div class="sig-action"><b>Action:</b> {action}</div>
+</div>''', unsafe_allow_html=True)
+        st.markdown('<div style="height:.5rem"></div>', unsafe_allow_html=True)
 
     # ── Dual Forecasts (toggleable) ────────────────────────
     if "forecasts" in visible_blocks:
