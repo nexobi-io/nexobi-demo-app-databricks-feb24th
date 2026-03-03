@@ -813,6 +813,12 @@ for _b in BLOCK_REGISTRY:
     if f"blk_{_b['id']}" not in st.session_state:
         st.session_state[f"blk_{_b['id']}"] = True  # all on by default
 
+# Force treatments ON whenever entering practice/CRM mode
+_was_practice = st.session_state.get("_prev_practice_mode", not practice_mode)
+if practice_mode and not _was_practice:
+    st.session_state["blk_treatments"] = True
+st.session_state["_prev_practice_mode"] = practice_mode
+
 visible_blocks = {
     b["id"] for b in BLOCK_REGISTRY
     if st.session_state.get(f"blk_{b['id']}", True)
