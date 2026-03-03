@@ -470,25 +470,6 @@ section[data-testid="stSidebar"] .stButton>button:hover{background:#E6F9F0!impor
 }
 /* remove per-chip colour overrides — all chips same style */
 
-/* ── Insight cards — glass data cards (empty state) ─────── */
-[data-testid="stMarkdownContainer"]:has(#ai-insight-marker)+[data-testid="stHorizontalBlock"] [data-testid="stColumn"] .stButton>button{
-  background:rgba(255,255,255,.07)!important;
-  border:1px solid rgba(255,255,255,.14)!important;
-  backdrop-filter:blur(12px)!important;-webkit-backdrop-filter:blur(12px)!important;
-  border-radius:16px!important;padding:1.1rem 1rem .9rem!important;
-  min-height:110px!important;height:auto!important;
-  text-align:left!important;white-space:pre-wrap!important;
-  font-size:.82rem!important;font-weight:500!important;
-  color:rgba(255,255,255,.82)!important;
-  box-shadow:0 4px 24px rgba(0,0,0,.15)!important;
-  transition:all .18s ease!important;width:100%!important;line-height:1.65!important;
-}
-[data-testid="stMarkdownContainer"]:has(#ai-insight-marker)+[data-testid="stHorizontalBlock"] [data-testid="stColumn"] .stButton>button:hover{
-  background:rgba(255,255,255,.13)!important;
-  border-color:rgba(0,192,107,.45)!important;
-  transform:translateY(-3px)!important;
-  box-shadow:0 8px 32px rgba(0,0,0,.22)!important;
-}
 /* ── Follow-up suggestion chips ──────────────────────────── */
 [data-testid="stMarkdownContainer"]:has(.ai-followup-marker)+[data-testid="stHorizontalBlock"] .stButton>button{
   background:rgba(0,192,107,.08)!important;
@@ -1660,70 +1641,6 @@ def _is_visual_question(q: str) -> bool:
     ])
 
 
-def _ai_insights() -> list:
-    """Compute 3 live data insight cards from the loaded dataset."""
-    df = DATA.copy()
-    df["date"] = pd.to_datetime(df["date"])
-    today  = pd.to_datetime(MAX_DATE)
-    cutoff = today - pd.Timedelta(days=30)
-    prior  = cutoff - pd.Timedelta(days=30)
-    cur    = df[df["date"] >= cutoff]
-    prev   = df[(df["date"] >= prior) & (df["date"] < cutoff)]
-
-    def _s(frame, col):
-        return float(frame[col].sum()) if (col in frame.columns and len(frame) > 0) else 0.0
-
-    def _chg(c, p):
-        return (c - p) / abs(p) * 100 if p and p != 0 else None
-
-    # ── Insight 1: Revenue trend ─────────────────────────────
-    rev_c = _s(cur, "total_revenue");  rev_p = _s(prev, "total_revenue")
-    rev_d = _chg(rev_c, rev_p)
-    rev_sym  = "▲" if (rev_d or 0) >= 0 else "▼"
-    rev_txt  = f"{rev_sym} {abs(rev_d):.1f}% vs prior period" if rev_d is not None else "vs prior period"
-
-    # ── Insight 2: Show rate vs benchmark ───────────────────
-    att_c = _s(cur, "attended");  bk_c = _s(cur, "booked")
-    show_c   = att_c / max(bk_c, 1) * 100
-    bench_d  = show_c - BENCH_SHOW_RATE
-    bench_sym = "▲" if bench_d >= 0 else "▼"
-    bench_txt = f"{bench_sym} {abs(bench_d):.1f}% vs {BENCH_SHOW_RATE:.0f}% benchmark"
-
-    # ── Insight 3: Top source by ROAS ───────────────────────
-    by_src = (
-        cur.groupby("data_source")
-           .apply(lambda g: pd.Series({
-               "rev":  g["total_revenue"].sum(),
-               "cost": g["total_cost"].sum()
-           }))
-           .reset_index()
-    )
-    by_src["roas"] = by_src["rev"] / by_src["cost"].clip(lower=0.01)
-    top = by_src.sort_values("roas", ascending=False).iloc[0]
-
-    return [
-        {
-            "icon": "💰", "value": f"${rev_c:,.0f}",
-            "label": "Revenue · last 30 days", "delta": rev_txt,
-            "delta_pos": (rev_d or 0) >= 0,
-            "question": "What drove my revenue last month?"
-        },
-        {
-            "icon": "📅", "value": f"{show_c:.1f}%",
-            "label": "Appointment show rate", "delta": bench_txt,
-            "delta_pos": bench_d >= 0,
-            "question": "Which treatments have the highest show rate?"
-        },
-        {
-            "icon": "🚀", "value": f"{top['roas']:.1f}×",
-            "label": f"Best ROAS · {top['data_source']}",
-            "delta": f"${top['rev']:,.0f} revenue generated",
-            "delta_pos": True,
-            "question": f"Break down {top['data_source']} performance"
-        },
-    ]
-
-
 def _followup_chips(q: str) -> list:
     """Return up to 3 contextual follow-up questions based on what was asked."""
     q_low = q.lower()
@@ -1753,27 +1670,14 @@ def _followup_chips(q: str) -> list:
 
 def render_ai():
     # ── Session state init ───────────────────────────────────
-    if "ai_history"      not in st.session_state: st.session_state.ai_history      = []
-    if "ai_nonce"        not in st.session_state: st.session_state.ai_nonce        = 0
-    if "ai_pending_q"    not in st.session_state: st.session_state.ai_pending_q    = None
-    if "ai_answer_fresh" not in st.session_state: st.session_state.ai_answer_fresh = False
-
+    if "ai_history" not in st.session_state:
+        st.session_state.ai_history = []
+    if "ai_nonce" not in st.session_state:
+        st.session_state.ai_nonce = 0
     has_history = len(st.session_state.ai_history) > 0
     _csv_mode   = (_ACTIVE_MODE != "databricks")
 
-    # ── Drain pending question (insight cards / follow-up chips) ─
-    _pending = st.session_state.ai_pending_q
-    if _pending:
-        st.session_state.ai_pending_q = None
-        with st.spinner("Thinking…"):
-            result = ai_query_csv(_pending) if _csv_mode else ai_query_ask(_pending)
-        st.session_state.ai_history.insert(0, {"q": _pending, **result})
-        if len(st.session_state.ai_history) > 10:
-            st.session_state.ai_history = st.session_state.ai_history[:10]
-        st.session_state.ai_answer_fresh = True
-        st.rerun()
-
-    # ── EMPTY STATE: hero + proactive insight cards ───────────
+    # ── EMPTY STATE: hero only ───────────────────────────────
     if not has_history:
         st.markdown('''
 <div class="ai-hero-wrap">
@@ -1781,29 +1685,6 @@ def render_ai():
   <div class="ai-catch-sub">Get straight answers from your data. No dashboards needed.</div>
 </div>
 ''', unsafe_allow_html=True)
-
-        # Insight cards
-        try:
-            _insights = _ai_insights()
-            st.markdown('<div id="ai-insight-marker"></div>', unsafe_allow_html=True)
-            _ic1, _ic2, _ic3 = st.columns(3, gap="small")
-            for _col, _ins in zip([_ic1, _ic2, _ic3], _insights):
-                with _col:
-                    _btn_label = (
-                        f"{_ins['icon']}  {_ins['value']}\n"
-                        f"{_ins['label']}\n"
-                        f"{_ins['delta']}\n"
-                        f"→ Ask about this"
-                    )
-                    if st.button(
-                        _btn_label,
-                        key=f"ai_ins_{hash(_ins['question']) % 99991}",
-                        use_container_width=True
-                    ):
-                        st.session_state.ai_pending_q = _ins["question"]
-                        st.rerun()
-        except Exception:
-            pass  # silently skip if data not ready
 
     # ── Chat input (always rendered) ─────────────────────────
     st.markdown('<div id="ai-send-row"></div>', unsafe_allow_html=True)
@@ -1863,28 +1744,23 @@ def render_ai():
 </script>
 """, height=0)
 
-    # ── Resolve typed question ────────────────────────────────
+    # ── Resolve question ─────────────────────────────────────
     run_q = user_q.strip() if ask and user_q.strip() else None
+
     if run_q:
         with st.spinner("Thinking…"):
             result = ai_query_csv(run_q) if _csv_mode else ai_query_ask(run_q)
         st.session_state.ai_history.insert(0, {"q": run_q, **result})
         if len(st.session_state.ai_history) > 10:
             st.session_state.ai_history = st.session_state.ai_history[:10]
-        st.session_state.ai_answer_fresh = True
         st.rerun()
 
     # ── Chat history ─────────────────────────────────────────
-    is_fresh = st.session_state.ai_answer_fresh
-    if is_fresh:
-        st.session_state.ai_answer_fresh = False   # consume flag
-
-    for idx, item in enumerate(st.session_state.ai_history):
+    for item in st.session_state.ai_history:
         q     = item.get("q", "")
         text  = item.get("text", "")
         df    = item.get("df")
         error = item.get("error")
-        animate_this = (idx == 0 and is_fresh)
 
         # User bubble
         st.markdown(f'<div class="ai-bubble-user"><span>{q}</span></div>', unsafe_allow_html=True)
@@ -1911,16 +1787,15 @@ def render_ai():
             st.error(f"AI error: {error}")
             continue
 
-        # AI response bubble — invisible initially when animating
+        # AI response
         if text:
-            _bubble_style = ' id="ai-bubble-fresh" style="opacity:0"' if animate_this else ''
             st.markdown(
                 '<div class="ai-msg-label">NexoBI AI</div>'
-                f'<div class="ai-bubble-ai"{_bubble_style}>{text}</div>',
+                f'<div class="ai-bubble-ai">{text}</div>',
                 unsafe_allow_html=True
             )
 
-        # Auto chart
+        # Auto chart — only for explicitly visual questions
         if _is_visual_question(q):
             chart = _ai_chart(q)
             if chart is not None:
@@ -1930,56 +1805,36 @@ def render_ai():
 
         # Data table
         if df is not None and not df.empty:
-            st.dataframe(df_light(df), use_container_width=True, hide_index=True, height=df_height(len(df)))
+            st.dataframe(
+                df_light(df),
+                use_container_width=True,
+                hide_index=True,
+                height=df_height(len(df))
+            )
 
         # ── Follow-up suggestion chips ───────────────────────
-        _chips = _followup_chips(q)
-        if _chips:
+        if not error:
+            _chips = _followup_chips(q)
             st.markdown('<div class="ai-followup-marker"></div>', unsafe_allow_html=True)
             _chip_cols = st.columns(len(_chips))
             for _ci, (_chip_col, _chip) in enumerate(zip(_chip_cols, _chips)):
                 with _chip_col:
                     if st.button(_chip, key=f"ai_chip_{hash(q) % 99991}_{_ci}", use_container_width=True):
-                        st.session_state.ai_pending_q = _chip
+                        with st.spinner("Thinking…"):
+                            _chip_res = ai_query_csv(_chip) if _csv_mode else ai_query_ask(_chip)
+                        st.session_state.ai_history.insert(0, {"q": _chip, **_chip_res})
+                        if len(st.session_state.ai_history) > 10:
+                            st.session_state.ai_history = st.session_state.ai_history[:10]
                         st.rerun()
 
-    # ── Streaming word-by-word reveal (fresh answer only) ────
-    if is_fresh:
-        components.html("""
-<script>
-(function(){
-  function stream(){
-    var el = window.parent.document.getElementById('ai-bubble-fresh');
-    if(!el){ setTimeout(stream, 200); return; }
-    var html = el.innerHTML;
-    el.innerHTML = '';
-    el.style.opacity = '1';
-    /* Tokenise: HTML tags appear instantly, words stream in */
-    var tokens = html.match(/(<[^>]+>|[^< \\t\\n]+|[ \\t\\n]+)/g) || [];
-    var i = 0;
-    function next(){
-      if(i >= tokens.length) return;
-      el.innerHTML += tokens[i];
-      var delay = (tokens[i] && tokens[i].charAt(0) === '<') ? 0 : 18;
-      i++;
-      setTimeout(next, delay);
-    }
-    next();
-  }
-  setTimeout(stream, 420);
-})();
-</script>
-""", height=0)
-
-    # ── New chat ──────────────────────────────────────────────
+    # ── New chat — below dialogue, only when history exists ──
     if has_history:
         st.markdown('<div style="height:.6rem"></div>', unsafe_allow_html=True)
         _nc_gap, _nc_col = st.columns([8, 2])
         with _nc_col:
             if st.button("↺  New chat", key="ai_reset_compact", use_container_width=True):
-                st.session_state.ai_history      = []
-                st.session_state.ai_nonce       += 1
-                st.session_state.ai_answer_fresh = False
+                st.session_state.ai_history = []
+                st.session_state.ai_nonce  += 1
                 st.rerun()
 
 # ==========================================================
