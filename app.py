@@ -1630,41 +1630,17 @@ def render_ai():
         st.session_state.ai_history = []
     if "ai_nonce" not in st.session_state:
         st.session_state.ai_nonce = 0
-    if "ai_preset" not in st.session_state:
-        st.session_state.ai_preset = None
+    has_history = len(st.session_state.ai_history) > 0
+    _csv_mode   = (_ACTIVE_MODE != "databricks")
 
-    has_history  = len(st.session_state.ai_history) > 0
-    has_pending  = bool(st.session_state.get("ai_preset"))   # preset queued → skip hero
-
-    _csv_mode = (_ACTIVE_MODE != "databricks")
-
-    # ── EMPTY STATE: hero + preset cards ────────────────────
-    if not has_history and not has_pending:
-        st.markdown(f'''
+    # ── EMPTY STATE: hero only ───────────────────────────────
+    if not has_history:
+        st.markdown('''
 <div class="ai-hero-wrap">
-  <div><span class="ai-status-pill"><span class="ai-pulse"></span>◆ NexoBI AI &nbsp;·&nbsp; {"Local data" if _csv_mode else "Live · Databricks"}</span></div>
   <div class="ai-catch">Ask anything about<br><span class="ai-catch-hi">your practice.</span></div>
   <div class="ai-catch-sub">Get straight answers from your data. No dashboards needed.</div>
 </div>
 ''', unsafe_allow_html=True)
-
-        # ── Preset cards ─────────────────────────────────────
-        card_labels = [
-            ("Revenue · last 30 days",  "Revenue last 30 days"),
-            ("ROAS · by source",        "ROAS by source"),
-            ("Google vs Facebook",      "Compare Google vs Facebook"),
-        ]
-        st.markdown('<div id="ai-cards-marker"></div>', unsafe_allow_html=True)
-        _pc = st.columns(3, gap="medium")
-        for col, (label, val) in zip(_pc, card_labels):
-            with col:
-                if st.button(label, key=f"ai_p_{val}", use_container_width=True):
-                    st.session_state.ai_preset = val
-                    st.rerun()
-
-        st.markdown('<div style="height:1.4rem"></div>', unsafe_allow_html=True)
-
-    # ── ACTIVE STATE: no header, just go straight to input ───
 
     # ── Chat input (always rendered) ─────────────────────────
     st.markdown('<div id="ai-send-row"></div>', unsafe_allow_html=True)
@@ -1680,19 +1656,8 @@ def render_ai():
         st.markdown('<div style="height:1.55rem"></div>', unsafe_allow_html=True)
         ask = st.button("↑", use_container_width=True, key="ai_ask", type="primary")
 
-    st.markdown(
-        '<p style="font-size:.68rem;margin:.15rem 0 .6rem;text-align:right;">'
-        'Powered by NexoBI · Local CSV</p>',
-        unsafe_allow_html=True
-    )
-
     # ── Resolve question ─────────────────────────────────────
-    run_q = None
-    if st.session_state.ai_preset:
-        run_q = st.session_state.ai_preset
-        st.session_state.ai_preset = None
-    elif ask and user_q.strip():
-        run_q = user_q.strip()
+    run_q = user_q.strip() if ask and user_q.strip() else None
 
     if run_q:
         with st.spinner("Thinking…"):
@@ -1761,11 +1726,6 @@ def render_ai():
                 height=df_height(len(df))
             )
 
-        # SQL expander
-        if sql:
-            with st.expander("View SQL", expanded=False):
-                st.code(sql, language="sql")
-
     # ── New chat — below dialogue, only when history exists ──
     if has_history:
         st.markdown('<div style="height:.6rem"></div>', unsafe_allow_html=True)
@@ -1774,7 +1734,6 @@ def render_ai():
             if st.button("↺  New chat", key="ai_reset_compact", use_container_width=True):
                 st.session_state.ai_history = []
                 st.session_state.ai_nonce  += 1
-                st.session_state.ai_preset  = None
                 st.rerun()
 
 # ==========================================================
