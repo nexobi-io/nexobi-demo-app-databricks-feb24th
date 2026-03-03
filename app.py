@@ -9,10 +9,9 @@ import os
 from datetime import datetime, timedelta, date
 
 # ==========================================================
-# CONFIG — CSV (dev) or Databricks (prod)
-# Set NEXOBI_DATA_MODE=databricks in Databricks Apps env vars
+# CONFIG — Databricks (Unity Catalog)
+# Set env vars in Databricks Apps settings
 # ==========================================================
-CSV_PATH = "data.csv"   # used when DATA_MODE == "csv"
 
 # Unity Catalog coordinates — set these as Databricks Apps env vars
 DBX_CATALOG = os.getenv("NEXOBI_CATALOG", "workspace")
@@ -125,7 +124,7 @@ def df_height(n_rows: int, *, row_h: int = 36, header_h: int = 38, min_h: int = 
 
 
 # ==========================================================
-# LOAD CSV
+# DATA LOADING
 # ==========================================================
 REQUIRED_COLS = [
     "date","data_source","channel_group","campaign",
@@ -180,13 +179,6 @@ def _normalize_df(df: pd.DataFrame) -> pd.DataFrame:
 
 
 @st.cache_data(ttl=3600)
-def load_data(path: str) -> pd.DataFrame:
-    """CSV mode — used during local development or Streamlit Cloud."""
-    df = pd.read_csv(path)
-    return _normalize_df(df)
-
-
-@st.cache_data(ttl=3600)
 def load_data_databricks(catalog: str, schema: str, table: str) -> pd.DataFrame:
     """
     Databricks mode — reads a Delta table from Unity Catalog.
@@ -225,49 +217,20 @@ def load_data_databricks(catalog: str, schema: str, table: str) -> pd.DataFrame:
     return _normalize_df(df)
 
 
-# ---- Load data based on mode (with automatic CSV fallback) ----
+# ---- Load data from Databricks ----
 # Handle query-param navigation from AI Agent fixed "← Dashboard" button
 if st.query_params.get("_nav") == "dash":
     st.query_params.clear()
     st.session_state["nav"] = "Dashboard"
 
-# Default to CSV every fresh session; only go live when user explicitly switches
-if "force_live_mode" not in st.session_state:
-    st.session_state["force_live_mode"] = False   # CSV is always the default on open
-
-_force_live    = st.session_state["force_live_mode"]
-_ACTIVE_MODE   = "databricks" if _force_live else "csv"   # always CSV unless user switches
-_FALLBACK_WARN = None               # banner message shown in sidebar
-
 try:
-    if _ACTIVE_MODE == "databricks":
-        DATA = load_data_databricks(DBX_CATALOG, DBX_SCHEMA, DBX_TABLE)
-    else:
-        DATA = load_data(CSV_PATH)
+    DATA = load_data_databricks(DBX_CATALOG, DBX_SCHEMA, DBX_TABLE)
 except Exception as _dbx_err:
-    if _ACTIVE_MODE == "databricks":
-        # Databricks unavailable — silently fall back to local CSV
-        try:
-            DATA = load_data(CSV_PATH)
-            _ACTIVE_MODE   = "csv"
-            _FALLBACK_WARN = str(_dbx_err)
-        except Exception as _csv_err:
-            st.error(
-                f"⚠️ Databricks unreachable **and** local CSV failed to load.\n\n"
-                f"• Databricks error: `{_dbx_err}`\n"
-                f"• CSV error: `{_csv_err}`\n\n"
-                f"Place `data.csv` next to `app.py` and retry."
-            )
-            st.stop()
-    else:
-        st.error(f"Could not load `{CSV_PATH}`. Place data.csv next to app.py. Error: {_dbx_err}")
-        st.stop()
+    st.error(f"⚠️ Could not connect to Databricks: `{_dbx_err}`")
+    st.stop()
 
 MIN_DATE = DATA["date"].min()
 MAX_DATE = DATA["date"].max()
-
-# Show data source badge in header area + refresh button (Databricks mode only)
-_DBX_MODE = (_ACTIVE_MODE == "databricks")
 
 # ==========================================================
 # PLOTLY HELPERS
@@ -438,44 +401,31 @@ section[data-testid="stSidebar"] .stButton>button:hover{background:#E6F9F0!impor
 @keyframes pulseRing{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.55;transform:scale(1.5)}}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 
-/* ── Hero — transparent, sits on full-page aurora ────────── */
-.ai-hero-wrap{
-  position:relative;text-align:center;
-  padding:3.5rem 1rem 2.5rem;
-  background:transparent;
-}
-/* No card bg — aurora bleeds from page-level fixed orbs */
-.ai-orb,.ai-noise{display:none!important;}
-/* Status pill — dark glass */
+/* ── Hero ─────────────────────────────────────────────────── */
+.ai-hero-wrap{position:relative;text-align:center;padding:3rem 1rem 2rem;background:transparent;}
 .ai-status-pill{
   display:inline-flex;align-items:center;gap:7px;
-  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);
-  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  background:#F0FDF4;border:1px solid #BBF7D0;
   border-radius:999px;padding:5px 16px;
-  font-size:.7rem;font-weight:700;color:rgba(255,255,255,.82);
+  font-size:.7rem;font-weight:700;color:#15803D;
   letter-spacing:.07em;text-transform:uppercase;margin-bottom:1.5rem;
 }
 .ai-pulse{width:7px;height:7px;background:#00C06B;border-radius:50%;display:inline-block;animation:pulseRing 1.8s ease-in-out infinite;}
-/* White headline */
-.ai-catch{font-family:'Plus Jakarta Sans',sans-serif;font-size:3.4rem;font-weight:900;color:#FFFFFF;line-height:1.08;margin-bottom:.7rem;}
-/* Green → sky-blue gradient tagline */
-.ai-catch-hi{background:linear-gradient(120deg,#00C06B 0%,#38BDF8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.ai-catch-sub{font-size:.85rem;color:rgba(255,255,255,.52);font-weight:400;max-width:440px;margin:0 auto 2rem;}
-/* ── Preset chips — frosted pill buttons ─────────────────── */
+.ai-catch{font-family:'Plus Jakarta Sans',sans-serif;font-size:3rem;font-weight:900;color:#0F172A;line-height:1.08;margin-bottom:.7rem;}
+.ai-catch-hi{background:linear-gradient(120deg,#00C06B,#009952);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.ai-catch-sub{font-size:.85rem;color:#64748B;font-weight:400;max-width:440px;margin:0 auto 2rem;}
+/* ── Preset chips ────────────────────────────────────────── */
 [data-testid="stMarkdownContainer"]:has(#ai-cards-marker)+[data-testid="stHorizontalBlock"] .stButton>button{
-  background:rgba(255,255,255,.62)!important;
-  backdrop-filter:blur(12px)!important;-webkit-backdrop-filter:blur(12px)!important;
-  border:1px solid rgba(255,255,255,.85)!important;
+  background:#FFFFFF!important;border:1px solid #E2E8F0!important;
   border-radius:999px!important;padding:.5rem 1.4rem!important;
   min-height:0!important;height:auto!important;text-align:center!important;
   font-size:.83rem!important;font-weight:600!important;color:#334155!important;
-  box-shadow:0 2px 12px rgba(0,0,0,.08)!important;
-  transition:all .16s ease!important;line-height:1.4!important;white-space:nowrap!important;width:100%!important;
+  box-shadow:0 1px 4px rgba(0,0,0,.06)!important;
+  transition:all .15s ease!important;line-height:1.4!important;white-space:nowrap!important;width:100%!important;
 }
 [data-testid="stMarkdownContainer"]:has(#ai-cards-marker)+[data-testid="stHorizontalBlock"] .stButton>button:hover{
-  background:rgba(255,255,255,.92)!important;
-  box-shadow:0 4px 18px rgba(0,0,0,.13)!important;
-  transform:translateY(-2px)!important;color:#0F172A!important;
+  border-color:#00C06B!important;color:#009952!important;
+  box-shadow:0 2px 10px rgba(0,192,107,.15)!important;transform:translateY(-1px)!important;
 }
 /* remove per-chip colour overrides — all chips same style */
 
@@ -486,13 +436,13 @@ section[data-testid="stSidebar"] .stButton>button:hover{background:#E6F9F0!impor
   border-radius:999px!important;padding:.18rem .7rem!important;
   min-height:0!important;height:auto!important;
   font-size:.68rem!important;font-weight:500!important;
-  color:rgba(255,255,255,.65)!important;
+  color:#009952!important;
   box-shadow:none!important;transition:all .15s!important;
   white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;width:100%!important;
 }
 [data-testid="stMarkdownContainer"]:has(.ai-followup-marker)+[data-testid="stHorizontalBlock"] .stButton>button:hover{
-  background:rgba(0,192,107,.18)!important;border-color:rgba(0,192,107,.5)!important;
-  color:#ffffff!important;transform:translateY(-1px)!important;
+  background:rgba(0,192,107,.15)!important;border-color:rgba(0,192,107,.5)!important;
+  color:#007a41!important;transform:translateY(-1px)!important;
 }
 
 /* ── "New chat" button ───────────────────────────────────── */
@@ -650,15 +600,12 @@ def list_unique(col: str):
 with st.sidebar:
 
     # --- Data mode indicator (compact dot) ---
-    _is_live = st.session_state.get("force_live_mode", False) and not bool(_FALLBACK_WARN)
-    _dot_color = "#C2410C" if _FALLBACK_WARN else ("#15803D" if _is_live else "#94A3B8")
-    _dot_label = "CSV (fallback)" if _FALLBACK_WARN else ("Live · Databricks" if _is_live else "Local CSV")
     st.markdown(
-        f'<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;margin-bottom:6px;">'
-        f'<span style="width:6px;height:6px;border-radius:50%;background:{_dot_color};'
-        f'display:inline-block;flex-shrink:0;"></span>'
-        f'<span style="font-size:.67rem;color:#94A3B8;font-weight:500;">{_dot_label}</span>'
-        f'</div>',
+        '<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;margin-bottom:6px;">'
+        '<span style="width:6px;height:6px;border-radius:50%;background:#15803D;'
+        'display:inline-block;flex-shrink:0;"></span>'
+        '<span style="font-size:.67rem;color:#94A3B8;font-weight:500;">Live · Databricks</span>'
+        '</div>',
         unsafe_allow_html=True
     )
 
@@ -731,15 +678,14 @@ with st.sidebar:
 
 
     # --------------------------------------------------
-    # Refresh button — bottom of sidebar (Databricks only)
+    # Refresh button
     # --------------------------------------------------
-    if _DBX_MODE:
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-        st.markdown('<div class="refresh-wrap">', unsafe_allow_html=True)
-        if st.button("↺ Refresh", key="refresh_data"):
-            load_data_databricks.clear()
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="refresh-wrap">', unsafe_allow_html=True)
+    if st.button("↺ Refresh", key="refresh_data"):
+        load_data_databricks.clear()
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def apply_filters(df: pd.DataFrame, s: date, e: date, srcs, ch: str, camp: str) -> pd.DataFrame:
     out = df[(df["date"] >= s) & (df["date"] <= e)].copy()
@@ -1168,25 +1114,24 @@ def render_command_center():
     # ── Top Signals (toggleable) ───────────────────────────
     if "signals" in visible_blocks:
         st.markdown('<div class="section-title" style="margin-top:.5rem;">Signals</div>', unsafe_allow_html=True)
-        _dot_map = {"sb-pill-red": "#EF4444", "sb-pill-amber": "#F59E0B", "sb-pill-green": "#00C06B"}
-        _sig_rows = ""
-        for _si, (sev, pill_cls, title, detail, action) in enumerate(_alerts[:3]):
+        _dot_map  = {"sb-pill-red": "#EF4444", "sb-pill-amber": "#F59E0B", "sb-pill-green": "#00C06B"}
+        _left_map = {"sb-pill-red": "#EF4444", "sb-pill-amber": "#F59E0B", "sb-pill-green": "#00C06B"}
+        _s1, _s2, _s3 = st.columns(3, gap="small")
+        for col, (sev, pill_cls, title, detail, action) in zip([_s1, _s2, _s3], _alerts[:3]):
             _dc = _dot_map.get(pill_cls, "#00C06B")
-            _border = "border-bottom:1px solid #F1F5F9;" if _si < 2 else ""
-            _sig_rows += (
-                f'<div style="display:flex;align-items:center;gap:12px;padding:8px 0;{_border}">'
-                f'<span style="width:7px;height:7px;border-radius:50%;background:{_dc};'
-                f'flex-shrink:0;display:inline-block;"></span>'
-                f'<span style="font-size:.81rem;font-weight:700;color:#0F172A;min-width:155px;'
-                f'flex-shrink:0;">{title}</span>'
-                f'<span style="font-size:.76rem;color:#64748B;">{detail}</span>'
-                f'</div>'
-            )
-        st.markdown(
-            f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
-            f'padding:6px 16px;margin-bottom:.5rem;">{_sig_rows}</div>',
-            unsafe_allow_html=True
-        )
+            with col:
+                st.markdown(
+                    f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-left:3px solid {_dc};'
+                    f'border-radius:10px;padding:10px 14px;height:100%;">'
+                    f'<div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;">'
+                    f'<span style="width:6px;height:6px;border-radius:50%;background:{_dc};'
+                    f'flex-shrink:0;display:inline-block;"></span>'
+                    f'<span style="font-size:.79rem;font-weight:700;color:#0F172A;">{title}</span>'
+                    f'</div>'
+                    f'<div style="font-size:.73rem;color:#64748B;line-height:1.4;">{detail}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
 
     # ── Dual Forecasts (toggleable) ────────────────────────
     if "forecasts" in visible_blocks:
@@ -1425,178 +1370,6 @@ def _ai_chart(question: str) -> "go.Figure | None":
 _MODEL_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
 
 
-def ai_query_csv(question: str) -> dict:
-    """Answer questions directly from the loaded CSV — no Databricks needed."""
-    q   = question.lower()
-    df  = DATA.copy()
-    df["date"] = pd.to_datetime(df["date"])
-    today = pd.to_datetime(MAX_DATE)
-
-    # ── Time range ────────────────────────────────────────────
-    if any(x in q for x in ["last 7", "past 7", "last week", "7 day"]):
-        days, plabel = 7, "last 7 days"
-    elif any(x in q for x in ["last 90", "quarter", "3 month", "90 day"]):
-        days, plabel = 90, "last 90 days"
-    else:
-        days, plabel = 30, "last 30 days"
-
-    cutoff  = today - pd.Timedelta(days=days)
-    d       = df[df["date"] >= cutoff]
-    prior_d = df[(df["date"] >= cutoff - pd.Timedelta(days=days)) & (df["date"] < cutoff)]
-
-    def _s(frame, col):
-        return float(frame[col].sum()) if col in frame.columns else 0.0
-
-    rev    = _s(d, "total_revenue");  p_rev  = _s(prior_d, "total_revenue")
-    cost   = _s(d, "total_cost");     p_cost = _s(prior_d, "total_cost")
-    leads  = _s(d, "leads");          p_leads= _s(prior_d, "leads")
-    booked = _s(d, "booked")
-    att    = _s(d, "attended")
-    roas   = rev  / max(cost,  0.01)
-    cpl    = cost / max(leads, 1)
-    show   = att  / max(booked, 1) * 100
-    book_r = booked / max(leads, 1) * 100
-
-    def _chg(curr, prev):
-        return (curr - prev) / abs(prev) * 100 if prev else None
-
-    def _badge(pct):
-        if pct is None: return ""
-        arrow = "▲" if pct >= 0 else "▼"
-        clr   = "#15803D" if pct >= 0 else "#DC2626"
-        return f' <span style="color:{clr};font-size:.78rem;font-weight:700;">{arrow} {abs(pct):.1f}%</span>'
-
-    # ── Compare two sources (e.g. "Google vs Facebook") ──────
-    _src_map = {
-        "google":    ["google"],
-        "facebook":  ["facebook", "meta", "fb"],
-        "instagram": ["instagram"],
-        "linkedin":  ["linkedin"],
-        "email":     ["email"],
-        "organic":   ["organic"],
-    }
-    found_srcs = [k for k, aliases in _src_map.items() if any(a in q for a in aliases)]
-
-    if len(found_srcs) >= 2:
-        rows = []
-        for src in found_srcs[:2]:
-            aliases = _src_map[src]
-            mask = d["data_source"].str.lower().apply(lambda x: any(a in x for a in aliases))
-            sd   = d[mask]
-            s_rev  = _s(sd, "total_revenue"); s_cost = _s(sd, "total_cost")
-            s_leads= _s(sd, "leads");         s_roas = s_rev / max(s_cost, 0.01)
-            rows.append({"_src": src.title(), "rev": s_rev, "cost": s_cost,
-                         "leads": s_leads, "roas": s_roas})
-        a, b = rows[0], rows[1]
-        winner_rev  = a["_src"] if a["rev"]  >= b["rev"]  else b["_src"]
-        winner_roas = a["_src"] if a["roas"] >= b["roas"] else b["_src"]
-        html = (
-            f'<b>{a["_src"]} vs {b["_src"]}</b> — {plabel}<br><br>'
-            '<table style="width:100%;border-collapse:collapse;font-size:.82rem;">'
-            '<thead><tr style="border-bottom:1.5px solid #E2E8F0;">'
-            + "".join(f'<th style="text-align:{"left" if i==0 else "right"};padding:4px 8px;'
-                      f'color:#64748B;font-size:.72rem;">{h}</th>'
-                      for i, h in enumerate(["Source","Production","Spend","ROAS","Leads"]))
-            + '</tr></thead><tbody>'
-        )
-        for r in rows:
-            rclr = "#15803D" if r["roas"] >= 3 else ("#DC2626" if r["roas"] < 1.5 else "#0F172A")
-            html += (f'<tr style="border-bottom:1px solid #F1F5F9;">'
-                     f'<td style="padding:5px 8px;font-weight:700;color:#0F172A;">{r["_src"]}</td>'
-                     f'<td style="text-align:right;padding:5px 8px;color:#0F172A;">${r["rev"]:,.0f}</td>'
-                     f'<td style="text-align:right;padding:5px 8px;color:#64748B;">${r["cost"]:,.0f}</td>'
-                     f'<td style="text-align:right;padding:5px 8px;font-weight:700;color:{rclr};">{r["roas"]:.2f}x</td>'
-                     f'<td style="text-align:right;padding:5px 8px;color:#0F172A;">{r["leads"]:,.0f}</td>'
-                     f'</tr>')
-        html += ('</tbody></table><br>'
-                 f'<span style="color:#64748B;font-size:.8rem;">'
-                 f'📊 <b>{winner_rev}</b> leads on production · <b>{winner_roas}</b> leads on ROAS</span>')
-        return {"text": html, "sql": None, "df": None, "error": None}
-
-    # ── Grouped by source or campaign ────────────────────────
-    grp = None
-    if any(x in q for x in ["by source", "per source", "by channel", "per channel"]):
-        grp = "data_source"
-    elif any(x in q for x in ["by campaign", "per campaign", "top campaign"]):
-        grp = "campaign"
-
-    if grp:
-        agg = (d.groupby(grp)
-               .agg(total_revenue=("total_revenue","sum"), total_cost=("total_cost","sum"),
-                    leads=("leads","sum"), booked=("booked","sum"))
-               .reset_index())
-        agg["roas"] = agg["total_revenue"] / agg["total_cost"].replace(0, 0.01)
-        sort_col = ("roas"          if any(x in q for x in ["roas","return"]) else
-                    "leads"         if any(x in q for x in ["lead","conversion"]) else
-                    "total_cost"    if any(x in q for x in ["spend","cost"]) else
-                    "total_revenue")
-        col_label = {"roas":"ROAS","leads":"Leads","total_cost":"Spend",
-                     "total_revenue":"Production"}.get(sort_col,"Production")
-        agg  = agg.sort_values(sort_col, ascending=False).head(8)
-        top  = agg.iloc[0]
-        html = (f'<b>{col_label} by {grp.replace("_"," ").title()}</b> — {plabel}<br><br>'
-                '<table style="width:100%;border-collapse:collapse;font-size:.82rem;">'
-                '<thead><tr style="border-bottom:1.5px solid #E2E8F0;">'
-                f'<th style="text-align:left;padding:4px 8px;color:#64748B;font-size:.72rem;">'
-                f'{grp.replace("_"," ").title()}</th>'
-                '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">Production</th>'
-                '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">ROAS</th>'
-                '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">Leads</th>'
-                '</tr></thead><tbody>')
-        for _, row in agg.iterrows():
-            rclr = "#15803D" if row["roas"] >= 3 else ("#DC2626" if row["roas"] < 1.5 else "#0F172A")
-            html += (f'<tr style="border-bottom:1px solid #F1F5F9;">'
-                     f'<td style="padding:5px 8px;font-weight:600;color:#0F172A;">{row[grp]}</td>'
-                     f'<td style="text-align:right;padding:5px 8px;color:#0F172A;">${row["total_revenue"]:,.0f}</td>'
-                     f'<td style="text-align:right;padding:5px 8px;font-weight:700;color:{rclr};">{row["roas"]:.2f}x</td>'
-                     f'<td style="text-align:right;padding:5px 8px;color:#0F172A;">{row["leads"]:,.0f}</td>'
-                     f'</tr>')
-        html += (f'</tbody></table><br>'
-                 f'<span style="color:#64748B;font-size:.8rem;">'
-                 f'🏆 <b>{top[grp]}</b> is the top performer by {col_label.lower()}.</span>')
-        return {"text": html, "sql": None, "df": None, "error": None}
-
-    # ── Single metric summary ─────────────────────────────────
-    if any(x in q for x in ["roas", "return on ad"]):
-        p_roas = _s(prior_d,"total_revenue") / max(_s(prior_d,"total_cost"), 0.01)
-        html = (f'<b>ROAS</b> — {plabel}<br>'
-                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{roas:.2f}x</span>'
-                f'{_badge(_chg(roas, p_roas))}<br><br>'
-                f'<span style="color:#64748B;font-size:.82rem;">'
-                f'Production: <b>${rev:,.0f}</b> &nbsp;·&nbsp; Spend: <b>${cost:,.0f}</b></span>')
-    elif any(x in q for x in ["lead", "conversion"]):
-        html = (f'<b>Leads</b> — {plabel}<br>'
-                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{leads:,.0f}</span>'
-                f'{_badge(_chg(leads, p_leads))}<br><br>'
-                f'<span style="color:#64748B;font-size:.82rem;">'
-                f'Booked: <b>{booked:,.0f}</b> ({book_r:.1f}%) &nbsp;·&nbsp; CPL: <b>${cpl:,.0f}</b></span>')
-    elif any(x in q for x in ["spend", "cost", "budget"]):
-        html = (f'<b>Ad Spend</b> — {plabel}<br>'
-                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">${cost:,.0f}</span>'
-                f'{_badge(_chg(cost, p_cost))}<br><br>'
-                f'<span style="color:#64748B;font-size:.82rem;">'
-                f'Production: <b>${rev:,.0f}</b> &nbsp;·&nbsp; ROAS: <b>{roas:.2f}x</b></span>')
-    elif any(x in q for x in ["show rate", "attendance", "attended", "no show", "no-show"]):
-        html = (f'<b>Show Rate</b> — {plabel}<br>'
-                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{show:.1f}%</span><br><br>'
-                f'<span style="color:#64748B;font-size:.82rem;">'
-                f'Booked: <b>{booked:,.0f}</b> &nbsp;·&nbsp; Attended: <b>{att:,.0f}</b> &nbsp;·&nbsp; '
-                f'No-shows: <b>{booked-att:,.0f}</b></span>')
-    elif any(x in q for x in ["book", "appointment"]):
-        html = (f'<b>Bookings</b> — {plabel}<br>'
-                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{booked:,.0f}</span><br><br>'
-                f'<span style="color:#64748B;font-size:.82rem;">'
-                f'From <b>{leads:,.0f}</b> leads ({book_r:.1f}% book rate) &nbsp;·&nbsp; '
-                f'Show rate: <b>{show:.1f}%</b></span>')
-    else:
-        html = (f'<b>Production</b> — {plabel}<br>'
-                f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">${rev:,.0f}</span>'
-                f'{_badge(_chg(rev, p_rev))}<br><br>'
-                f'<span style="color:#64748B;font-size:.82rem;">'
-                f'Spend: <b>${cost:,.0f}</b> &nbsp;·&nbsp; ROAS: <b>{roas:.2f}x</b> &nbsp;·&nbsp; '
-                f'Leads: <b>{leads:,.0f}</b></span>')
-
-    return {"text": html, "sql": None, "df": None, "error": None}
 
 
 def ai_query_ask(question: str) -> dict:
@@ -1604,15 +1377,6 @@ def ai_query_ask(question: str) -> dict:
     Answer a question using Databricks ai_query() SQL function.
     Returns a graceful offline message when Databricks is unavailable.
     """
-    # If we're running in CSV fallback mode, skip the call entirely
-    if _ACTIVE_MODE != "databricks":
-        return {
-            "text": "",
-            "sql": "",
-            "df": None,
-            "error": "offline",
-        }
-
     from databricks import sql as _dbsql
 
     endpoint = _MODEL_ENDPOINT
@@ -1688,7 +1452,6 @@ def render_ai():
     if "ai_nonce" not in st.session_state:
         st.session_state.ai_nonce = 0
     has_history = len(st.session_state.ai_history) > 0
-    _csv_mode   = (_ACTIVE_MODE != "databricks")
 
     # ── EMPTY STATE: hero only ───────────────────────────────
     if not has_history:
@@ -1782,7 +1545,7 @@ def render_ai():
 
     if run_q:
         with st.spinner("Thinking…"):
-            result = ai_query_csv(run_q) if _csv_mode else ai_query_ask(run_q)
+            result = ai_query_ask(run_q)
         st.session_state.ai_history.insert(0, {"q": run_q, **result})
         if len(st.session_state.ai_history) > 10:
             st.session_state.ai_history = st.session_state.ai_history[:10]
@@ -1854,7 +1617,7 @@ def render_ai():
                 with _chip_col:
                     if st.button(_chip, key=f"ai_chip_{_hidx}_{_ci}", use_container_width=True):
                         with st.spinner("Thinking…"):
-                            _chip_res = ai_query_csv(_chip) if _csv_mode else ai_query_ask(_chip)
+                            _chip_res = ai_query_ask(_chip)
                         st.session_state.ai_history.insert(0, {"q": _chip, **_chip_res})
                         if len(st.session_state.ai_history) > 10:
                             st.session_state.ai_history = st.session_state.ai_history[:10]
@@ -1884,7 +1647,6 @@ if page == "Dashboard":
             render_marketing()
 
 elif page == "AI Agent":
-    # ── Full-bleed dark navy aurora — hide everything, bleed full page ──
     st.markdown("""<style>
 [data-testid="stSidebar"]{display:none!important;}
 [data-testid="stHeader"]{display:none!important;}
@@ -1892,103 +1654,69 @@ elif page == "AI Agent":
 header{display:none!important;}footer{display:none!important;}
 .nexo-header{display:none!important;}
 section.main{margin-left:0!important;}
-.stApp{
-  --background-color:#060D1A!important;
-  --secondary-background-color:rgba(255,255,255,.07)!important;
-  --text-color:#CBD5E1!important;
-  background:#060D1A!important;min-height:100vh!important;
-}
-.block-container{max-width:680px!important;margin:0 auto!important;padding-top:1rem!important;padding-bottom:3rem!important;background:transparent!important;}
-/* Fixed full-page aurora orbs */
-.ai-page-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
-.ai-page-orbs .op1{position:absolute;width:520px;height:520px;background:rgba(0,192,107,.13);border-radius:50%;filter:blur(90px);top:-140px;right:-80px;animation:floatA 9s ease-in-out infinite;}
-.ai-page-orbs .op2{position:absolute;width:420px;height:420px;background:rgba(14,165,233,.10);border-radius:50%;filter:blur(90px);bottom:-100px;left:-60px;animation:floatB 13s ease-in-out infinite;}
-.ai-page-orbs .op3{position:absolute;width:300px;height:300px;background:rgba(139,92,246,.08);border-radius:50%;filter:blur(80px);top:42%;right:-50px;animation:floatA 17s ease-in-out infinite reverse;}
-/* ── Dashboard pill — fixed top-left anchor link ─────── */
+.stApp{background:#F5F7FA!important;}
+.block-container{max-width:680px!important;margin:0 auto!important;padding-top:1.5rem!important;padding-bottom:3rem!important;}
+/* Dashboard back pill */
 #nexobi-dash-pill{
-  position:fixed;top:14px;left:14px;z-index:10000;
-  background:transparent;border:1px solid rgba(255,255,255,.13);
-  border-radius:999px;padding:4px 13px;
-  color:rgba(255,255,255,.36);font-size:.68rem;font-weight:500;
+  display:inline-flex;align-items:center;gap:5px;
+  background:#FFFFFF;border:1px solid #E2E8F0;border-radius:999px;
+  padding:4px 14px;color:#64748B;font-size:.68rem;font-weight:500;
   cursor:pointer;font-family:inherit;letter-spacing:.02em;
-  text-decoration:none;display:inline-block;
+  text-decoration:none;margin-bottom:1rem;
   transition:all .18s;
 }
-#nexobi-dash-pill:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.22);}
-/* ── Textarea — white bg, DARK text, visible cursor ─────── */
-html body textarea,
-[data-testid="stTextArea"] textarea,
-.stTextArea textarea,
-.stApp textarea{
-  color:#000000!important;
-  -webkit-text-fill-color:#000000!important;
-  caret-color:#00C06B!important;
-  background:#ffffff!important;
-  border:1.5px solid rgba(0,192,107,.35)!important;
-  border-radius:16px!important;
+#nexobi-dash-pill:hover{border-color:#00C06B;color:#009952;}
+/* Textarea */
+html body textarea,[data-testid="stTextArea"] textarea,.stTextArea textarea,.stApp textarea{
+  color:#0F172A!important;-webkit-text-fill-color:#0F172A!important;
+  caret-color:#00C06B!important;background:#ffffff!important;
+  border:1.5px solid #E2E8F0!important;border-radius:16px!important;
   padding:13px 16px!important;font-size:.9rem!important;
   line-height:1.5!important;resize:none!important;box-shadow:none!important;
 }
-html body textarea::placeholder,
-[data-testid="stTextArea"] textarea::placeholder{color:#475569!important;-webkit-text-fill-color:#475569!important;font-size:.97rem!important;}
-html body textarea:focus,
-[data-testid="stTextArea"] textarea:focus{
-  border-color:#00C06B!important;
-  box-shadow:0 0 0 3px rgba(0,192,107,.12)!important;
-  caret-color:#00C06B!important;
+html body textarea::placeholder,[data-testid="stTextArea"] textarea::placeholder{color:#94A3B8!important;-webkit-text-fill-color:#94A3B8!important;font-size:.97rem!important;}
+html body textarea:focus,[data-testid="stTextArea"] textarea:focus{
+  border-color:#00C06B!important;box-shadow:0 0 0 3px rgba(0,192,107,.1)!important;
 }
 [data-testid="stTextArea"]>div,[data-testid="stTextArea"]>div>div{border:none!important;background:transparent!important;}
-/* ── Secondary buttons — frosted on dark bg ─────────────── */
-html body [data-testid="stBaseButton-secondary"],
-[data-testid="stBaseButton-secondary"]{
-  background:rgba(255,255,255,.10)!important;
-  border:1px solid rgba(255,255,255,.18)!important;
-  color:rgba(255,255,255,.78)!important;
+/* Secondary buttons */
+html body [data-testid="stBaseButton-secondary"],[data-testid="stBaseButton-secondary"]{
+  background:#FFFFFF!important;border:1px solid #E2E8F0!important;color:#64748B!important;
   box-shadow:none!important;border-radius:999px!important;
   padding:.3rem .95rem!important;font-size:.77rem!important;
-  min-height:0!important;height:auto!important;letter-spacing:.01em!important;
-  transition:all .16s!important;
+  min-height:0!important;height:auto!important;transition:all .16s!important;
 }
-html body [data-testid="stBaseButton-secondary"]:hover,
-[data-testid="stBaseButton-secondary"]:hover{
-  background:rgba(255,255,255,.18)!important;
-  color:#ffffff!important;border-color:rgba(255,255,255,.32)!important;
+html body [data-testid="stBaseButton-secondary"]:hover,[data-testid="stBaseButton-secondary"]:hover{
+  border-color:#00C06B!important;color:#009952!important;
 }
-/* ── Primary / Send — circular green ────────────────────── */
-html body [data-testid="stBaseButton-primary"],
-[data-testid="stBaseButton-primary"]{
-  border-radius:50%!important;
-  width:46px!important;min-width:46px!important;
-  height:46px!important;min-height:46px!important;
-  padding:0!important;font-size:1.1rem!important;
+/* Send button — circular green */
+html body [data-testid="stBaseButton-primary"],[data-testid="stBaseButton-primary"]{
+  border-radius:50%!important;width:46px!important;min-width:46px!important;
+  height:46px!important;min-height:46px!important;padding:0!important;font-size:1.1rem!important;
   background:linear-gradient(135deg,#00C06B,#00875A)!important;
   color:#fff!important;border:none!important;
-  box-shadow:0 4px 18px rgba(0,192,107,.35)!important;
-  transition:all .18s!important;
+  box-shadow:0 4px 18px rgba(0,192,107,.3)!important;transition:all .18s!important;
 }
-html body [data-testid="stBaseButton-primary"]:hover,
-[data-testid="stBaseButton-primary"]:hover{
-  box-shadow:0 6px 26px rgba(0,192,107,.5)!important;
-  transform:scale(1.07)!important;
+html body [data-testid="stBaseButton-primary"]:hover,[data-testid="stBaseButton-primary"]:hover{
+  box-shadow:0 6px 26px rgba(0,192,107,.45)!important;transform:scale(1.07)!important;
 }
-/* ── AI bubble — white card, DARK text ───────────────────── */
+/* AI bubbles on light bg */
 .ai-bubble-ai{
-  background:rgba(255,255,255,.92)!important;
-  border:none!important;border-left:3px solid #00C06B!important;
-  border-radius:4px 18px 18px 18px!important;
-  color:#1E293B!important;
+  background:#FFFFFF!important;border:1px solid #E2E8F0!important;
+  border-left:3px solid #00C06B!important;border-radius:4px 18px 18px 18px!important;
+  color:#1E293B!important;box-shadow:0 2px 12px rgba(0,0,0,.05)!important;
 }
 .ai-bubble-ai *{color:#334155!important;}
 .ai-bubble-ai b,.ai-bubble-ai strong,.ai-bubble-ai th{color:#0F172A!important;}
-.ai-bubble-ai td{color:#334155!important;}
-/* ── Misc ────────────────────────────────────────────────── */
-.stMarkdownContainer p{color:rgba(255,255,255,.26)!important;}
+/* Hero text — dark on light bg */
+.ai-catch{color:#0F172A!important;}
+.ai-catch-hi{background:linear-gradient(120deg,#00C06B,#009952);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
+.ai-catch-sub{color:#64748B!important;}
+.ai-status-pill{background:#F0FDF4!important;border:1px solid #BBF7D0!important;color:#15803D!important;}
+.ai-msg-label{color:#009952!important;}
 </style>""", unsafe_allow_html=True)
 
-    # ── Full-page aurora orbs ─────────────────────────────────
-    st.markdown('<div class="ai-page-orbs"><div class="op1"></div><div class="op2"></div><div class="op3"></div></div>', unsafe_allow_html=True)
-
-    # ── Dashboard pill — simple anchor, query-param nav ───────
+    # ── Dashboard pill ─────────────────────────────────────────
     st.markdown('<a id="nexobi-dash-pill" href="?_nav=dash" target="_self">← Dashboard</a>', unsafe_allow_html=True)
 
     # Note: AI Agent uses DATA (full dataset) — sidebar filters have no effect
