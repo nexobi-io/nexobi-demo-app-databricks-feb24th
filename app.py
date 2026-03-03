@@ -474,9 +474,9 @@ section[data-testid="stSidebar"] .stButton>button:hover{background:#E6F9F0!impor
 [data-testid="stMarkdownContainer"]:has(.ai-followup-marker)+[data-testid="stHorizontalBlock"] .stButton>button{
   background:rgba(0,192,107,.08)!important;
   border:1px solid rgba(0,192,107,.22)!important;
-  border-radius:999px!important;padding:.35rem 1rem!important;
+  border-radius:999px!important;padding:.18rem .7rem!important;
   min-height:0!important;height:auto!important;
-  font-size:.75rem!important;font-weight:500!important;
+  font-size:.68rem!important;font-weight:500!important;
   color:rgba(255,255,255,.65)!important;
   box-shadow:none!important;transition:all .15s!important;
   white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;width:100%!important;
