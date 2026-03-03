@@ -962,7 +962,7 @@ def build_sidebar_alerts(cur_df, prev_df):
             alerts.append((
                 "Opportunity", "sb-pill-green",
                 "Top campaign to protect",
-                f"'{topc['campaign']}' is highest revenue in the range.",
+                f"'{topc['campaign']}' is highest production in the range.",
                 "Keep budget stable, refresh creatives if fatigue shows, and protect impression share."
             ))
     except Exception:
@@ -1036,7 +1036,7 @@ def compute_health_score(cur_df: pd.DataFrame, prev_df: pd.DataFrame) -> int:
 # REVENUE FORECAST  (linear extrapolation, 30-day horizon)
 # ==========================================================
 def plot_forecast(df: pd.DataFrame, col: str = "total_revenue",
-                  title: str = "Revenue Forecast — 30-Day Projection",
+                  title: str = "Production Forecast — 30-Day Projection",
                   color: str = GREEN, is_money: bool = True,
                   days_ahead: int = 30):
     """Generic 30-day linear forecast. Returns (fig, projected_total) or (None, 0)."""
@@ -1141,7 +1141,7 @@ def render_command_center():
             show_clr      = '#009952' if show_rate >= BENCH_SHOW_RATE else '#D97706'
             banner_stats  = f'''
   <div class="cmd-health-stat">
-    <div class="cmd-health-label">Revenue</div>
+    <div class="cmd-health-label">Production</div>
     <div class="cmd-health-val">{money(rev)}</div>
     <div class="cmd-health-sub">{delta_html(rev_growth, has_prev)}</div>
   </div>
@@ -1161,10 +1161,10 @@ def render_command_center():
     <div class="cmd-health-sub">{delta_html(appt_growth, has_prev)}</div>
   </div>'''
         else:
-            # Marketing view: Revenue · ROAS · Cost/Lead · Show Rate
+            # Marketing view: Production · ROAS · Cost/Lead · Show Rate
             banner_stats = f'''
   <div class="cmd-health-stat">
-    <div class="cmd-health-label">Revenue</div>
+    <div class="cmd-health-label">Production</div>
     <div class="cmd-health-val">{money(rev)}</div>
     <div class="cmd-health-sub">{delta_html(rev_growth, has_prev)}</div>
   </div>
@@ -1225,7 +1225,7 @@ def render_command_center():
         with _f1:
             fig_rev, proj_rev = plot_forecast(
                 base, col="total_revenue",
-                title="Revenue Forecast — 30-Day Projection",
+                title="Production Forecast — 30-Day Projection",
                 color=GREEN, is_money=True
             )
             if fig_rev:
@@ -1239,7 +1239,7 @@ def render_command_center():
                 st.plotly_chart(fig_rev, use_container_width=True, config={"displayModeBar": False})
                 st.markdown('</div>', unsafe_allow_html=True)
             else:
-                st.info("Not enough data for revenue forecast.")
+                st.info("Not enough data for production forecast.")
         with _f2:
             fig_bk, proj_bk = plot_forecast(
                 base, col="booked",
@@ -1273,14 +1273,14 @@ def render_marketing():
             Leads=("leads","sum"),
             Booked=("booked","sum"),
             Attended=("attended","sum"),
-            Revenue=("total_revenue","sum"),
+            Production=("total_revenue","sum"),
             Spend=("total_cost","sum"),
         )
         journey["Lead Rate"] = np.where(journey["Sessions"]>0, journey["Leads"]/journey["Sessions"]*100, 0)
         journey["Book Rate"] = np.where(journey["Leads"]>0, journey["Booked"]/journey["Leads"]*100, 0)
         journey["Show Rate"] = np.where(journey["Booked"]>0, journey["Attended"]/journey["Booked"]*100, 0)
-        journey["ROAS"] = np.where(journey["Spend"]>0, journey["Revenue"]/journey["Spend"], 0)
-        journey = journey.sort_values("Revenue", ascending=False)
+        journey["ROAS"] = np.where(journey["Spend"]>0, journey["Production"]/journey["Spend"], 0)
+        journey = journey.sort_values("Production", ascending=False)
 
         jd = journey.copy()
         jd.insert(0, "Source", jd.pop("data_source"))
@@ -1291,7 +1291,7 @@ def render_marketing():
         jd["Lead Rate"]=jd["Lead Rate"].apply(lambda x: f"{x:.1f}%")
         jd["Book Rate"]=jd["Book Rate"].apply(lambda x: f"{x:.1f}%")
         jd["Show Rate"]=jd["Show Rate"].apply(lambda x: f"{x:.1f}%")
-        jd["Revenue"]=jd["Revenue"].apply(money)
+        jd["Production"]=jd["Production"].apply(money)
         jd["Spend"]=jd["Spend"].apply(money)
         jd["ROAS"]=jd["ROAS"].apply(lambda x: f"{x:.2f}x")
         st.dataframe(df_light(jd), use_container_width=True, hide_index=True, height=df_height(len(jd)))
@@ -1309,12 +1309,12 @@ def render_practice():
                 Patients=("conversions", "sum"),
                 Booked=("booked",        "sum"),
                 Attended=("attended",    "sum"),
-                Revenue=("total_revenue","sum"),
+                Production=("total_revenue","sum"),
             )
-            grp["Show Rate"]    = grp.apply(lambda r: safe_div(r["Attended"], r["Booked"]) * 100, axis=1)
-            grp["Rev/Patient"]  = grp.apply(lambda r: safe_div(r["Revenue"],  r["Patients"]),     axis=1)
+            grp["Show Rate"]       = grp.apply(lambda r: safe_div(r["Attended"], r["Booked"]) * 100, axis=1)
+            grp["Prod/Patient"]    = grp.apply(lambda r: safe_div(r["Production"], r["Patients"]),    axis=1)
 
-            # Prior-period Rev/Patient for delta
+            # Prior-period Prod/Patient for delta
             if len(prev_t) > 0:
                 prev_g = prev_t.groupby("treatment", as_index=False).agg(
                     Revenue_p=("total_revenue","sum"),
@@ -1322,24 +1322,24 @@ def render_practice():
                 )
                 prev_g["RevPat_p"] = prev_g.apply(lambda r: safe_div(r["Revenue_p"], r["Patients_p"]), axis=1)
                 grp = grp.merge(prev_g[["treatment","RevPat_p"]], on="treatment", how="left")
-                grp["Δ Rev/Patient"] = grp.apply(
-                    lambda r: safe_div(r["Rev/Patient"] - r["RevPat_p"],
+                grp["Δ Prod/Patient"] = grp.apply(
+                    lambda r: safe_div(r["Prod/Patient"] - r["RevPat_p"],
                                        max(abs(r["RevPat_p"]), 0.01)) * 100
                     if pd.notna(r.get("RevPat_p")) else np.nan, axis=1)
             else:
-                grp["Δ Rev/Patient"] = np.nan
+                grp["Δ Prod/Patient"] = np.nan
 
-            grp = grp.sort_values("Revenue", ascending=False).head(20)
+            grp = grp.sort_values("Production", ascending=False).head(20)
 
             out = grp.rename(columns={"treatment": "Treatment"})[
-                ["Treatment", "Patients", "Show Rate", "Rev/Patient", "Δ Rev/Patient", "Revenue"]
+                ["Treatment", "Patients", "Show Rate", "Prod/Patient", "Δ Prod/Patient", "Production"]
             ].copy()
-            out["Patients"]      = out["Patients"].apply(fmt)
-            out["Show Rate"]     = out["Show Rate"].apply(lambda x: f"{float(x or 0):.1f}%")
-            out["Rev/Patient"]   = out["Rev/Patient"].apply(money)
-            out["Δ Rev/Patient"] = out["Δ Rev/Patient"].apply(
+            out["Patients"]        = out["Patients"].apply(fmt)
+            out["Show Rate"]       = out["Show Rate"].apply(lambda x: f"{float(x or 0):.1f}%")
+            out["Prod/Patient"]    = out["Prod/Patient"].apply(money)
+            out["Δ Prod/Patient"]  = out["Δ Prod/Patient"].apply(
                 lambda x: f"{x:+.0f}%" if pd.notna(x) else "—")
-            out["Revenue"]       = out["Revenue"].apply(money)
+            out["Production"]      = out["Production"].apply(money)
 
             st.dataframe(df_light(out), use_container_width=True,
                          hide_index=True, height=df_height(len(out)))
@@ -1401,7 +1401,7 @@ def _ai_chart(question: str) -> "go.Figure | None":
         if any(w in q for w in ["trend", "over time", "daily", "weekly", "by day", "by month", "timeline", "last 30", "mtd", "30 days"]):
             if any(w in q for w in ["spend", "cost"]):
                 return _line(COST, "Spend Over Time")
-            return _line(REV, "Revenue Over Time")
+            return _line(REV, "Production Over Time")
 
         # ROAS — computed per source (no roas column in schema)
         if "roas" in q:
@@ -1428,20 +1428,20 @@ def _ai_chart(question: str) -> "go.Figure | None":
 
         # Channel breakdown
         if any(w in q for w in ["channel"]):
-            return _group_bar("channel_group", REV, "Revenue by Channel", "$")
+            return _group_bar("channel_group", REV, "Production by Channel", "$")
 
         # Compare sources / platform comparison
         if any(w in q for w in ["compare", "vs", "versus", "google", "facebook", "meta", "source"]):
-            return _group_bar("data_source", REV, "Revenue by Source", "$")
+            return _group_bar("data_source", REV, "Production by Source", "$")
 
         # Bar chart catch-all
         if any(w in q for w in ["bar", "chart", "breakdown"]):
-            return _group_bar("data_source", REV, "Revenue by Source", "$")
+            return _group_bar("data_source", REV, "Production by Source", "$")
 
         # Default: revenue over time if date available, else by source
         if has("date"):
-            return _line(REV, "Revenue Over Time")
-        return _group_bar("data_source", REV, "Revenue by Source", "$")
+            return _line(REV, "Production Over Time")
+        return _group_bar("data_source", REV, "Production by Source", "$")
 
     except Exception:
         pass
@@ -1526,7 +1526,7 @@ def ai_query_csv(question: str) -> dict:
             '<thead><tr style="border-bottom:1.5px solid #E2E8F0;">'
             + "".join(f'<th style="text-align:{"left" if i==0 else "right"};padding:4px 8px;'
                       f'color:#64748B;font-size:.72rem;">{h}</th>'
-                      for i, h in enumerate(["Source","Revenue","Spend","ROAS","Leads"]))
+                      for i, h in enumerate(["Source","Production","Spend","ROAS","Leads"]))
             + '</tr></thead><tbody>'
         )
         for r in rows:
@@ -1540,7 +1540,7 @@ def ai_query_csv(question: str) -> dict:
                      f'</tr>')
         html += ('</tbody></table><br>'
                  f'<span style="color:#64748B;font-size:.8rem;">'
-                 f'📊 <b>{winner_rev}</b> leads on revenue · <b>{winner_roas}</b> leads on ROAS</span>')
+                 f'📊 <b>{winner_rev}</b> leads on production · <b>{winner_roas}</b> leads on ROAS</span>')
         return {"text": html, "sql": None, "df": None, "error": None}
 
     # ── Grouped by source or campaign ────────────────────────
@@ -1561,7 +1561,7 @@ def ai_query_csv(question: str) -> dict:
                     "total_cost"    if any(x in q for x in ["spend","cost"]) else
                     "total_revenue")
         col_label = {"roas":"ROAS","leads":"Leads","total_cost":"Spend",
-                     "total_revenue":"Revenue"}.get(sort_col,"Revenue")
+                     "total_revenue":"Production"}.get(sort_col,"Production")
         agg  = agg.sort_values(sort_col, ascending=False).head(8)
         top  = agg.iloc[0]
         html = (f'<b>{col_label} by {grp.replace("_"," ").title()}</b> — {plabel}<br><br>'
@@ -1569,7 +1569,7 @@ def ai_query_csv(question: str) -> dict:
                 '<thead><tr style="border-bottom:1.5px solid #E2E8F0;">'
                 f'<th style="text-align:left;padding:4px 8px;color:#64748B;font-size:.72rem;">'
                 f'{grp.replace("_"," ").title()}</th>'
-                '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">Revenue</th>'
+                '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">Production</th>'
                 '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">ROAS</th>'
                 '<th style="text-align:right;padding:4px 8px;color:#64748B;font-size:.72rem;">Leads</th>'
                 '</tr></thead><tbody>')
@@ -1593,7 +1593,7 @@ def ai_query_csv(question: str) -> dict:
                 f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{roas:.2f}x</span>'
                 f'{_badge(_chg(roas, p_roas))}<br><br>'
                 f'<span style="color:#64748B;font-size:.82rem;">'
-                f'Revenue: <b>${rev:,.0f}</b> &nbsp;·&nbsp; Spend: <b>${cost:,.0f}</b></span>')
+                f'Production: <b>${rev:,.0f}</b> &nbsp;·&nbsp; Spend: <b>${cost:,.0f}</b></span>')
     elif any(x in q for x in ["lead", "conversion"]):
         html = (f'<b>Leads</b> — {plabel}<br>'
                 f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{leads:,.0f}</span>'
@@ -1605,7 +1605,7 @@ def ai_query_csv(question: str) -> dict:
                 f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">${cost:,.0f}</span>'
                 f'{_badge(_chg(cost, p_cost))}<br><br>'
                 f'<span style="color:#64748B;font-size:.82rem;">'
-                f'Revenue: <b>${rev:,.0f}</b> &nbsp;·&nbsp; ROAS: <b>{roas:.2f}x</b></span>')
+                f'Production: <b>${rev:,.0f}</b> &nbsp;·&nbsp; ROAS: <b>{roas:.2f}x</b></span>')
     elif any(x in q for x in ["show rate", "attendance", "attended", "no show", "no-show"]):
         html = (f'<b>Show Rate</b> — {plabel}<br>'
                 f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">{show:.1f}%</span><br><br>'
@@ -1619,7 +1619,7 @@ def ai_query_csv(question: str) -> dict:
                 f'From <b>{leads:,.0f}</b> leads ({book_r:.1f}% book rate) &nbsp;·&nbsp; '
                 f'Show rate: <b>{show:.1f}%</b></span>')
     else:
-        html = (f'<b>Revenue</b> — {plabel}<br>'
+        html = (f'<b>Production</b> — {plabel}<br>'
                 f'<span style="font-size:1.5rem;font-weight:900;color:#0F172A;">${rev:,.0f}</span>'
                 f'{_badge(_chg(rev, p_rev))}<br><br>'
                 f'<span style="color:#64748B;font-size:.82rem;">'
@@ -1689,7 +1689,7 @@ def _followup_chips(q: str) -> list:
     q_low = q.lower()
     pool  = []
     if any(x in q_low for x in ["revenue", "sales", "income", "money"]):
-        pool += ["Break down revenue by source", "Revenue trend last 90 days", "Best revenue day this month?"]
+        pool += ["Break down production by source", "Production trend last 90 days", "Best production day this month?"]
     if any(x in q_low for x in ["roas", "return on ad", "spend", "cost per"]):
         pool += ["Compare ROAS: Google vs Facebook", "Which campaign has the best ROI?"]
     if any(x in q_low for x in ["show rate", "attendance", "attended", "no-show"]):
@@ -1697,11 +1697,11 @@ def _followup_chips(q: str) -> list:
     if any(x in q_low for x in ["patient", "new patient", "lead"]):
         pool += ["What's my cost per new patient?", "New patient trend last 90 days"]
     if any(x in q_low for x in ["google", "facebook", "instagram", "meta", "source", "campaign"]):
-        pool += ["Which campaign drove the most revenue?", "Top 5 campaigns by ROAS"]
+        pool += ["Which campaign drove the most production?", "Top 5 campaigns by ROAS"]
     if any(x in q_low for x in ["treatment", "procedure", "service"]):
-        pool += ["Which treatment drives the most revenue?", "Show rate by treatment"]
+        pool += ["Which treatment drives the most production?", "Show rate by treatment"]
     if not pool:
-        pool = ["What drove revenue this month?", "Which source has the best ROAS?", "Show my top campaigns"]
+        pool = ["What drove production this month?", "Which source has the best ROAS?", "Show my top campaigns"]
     seen, chips = set(), []
     for c in pool:
         if c not in seen:
@@ -1748,7 +1748,7 @@ def render_ai():
 <script>
 (function () {
   var QUESTIONS = [
-    "What was my revenue last month?",
+    "What was my production last month?",
     "Which treatments have the highest show rate?",
     "How many new patients did we see this week?",
     "What\u2019s my ROAS across all campaigns?",
