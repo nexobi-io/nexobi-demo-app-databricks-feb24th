@@ -4,7 +4,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import re
 import os
 from datetime import datetime, timedelta, date
 
@@ -41,14 +40,12 @@ RED      = "#EF4444"
 BLUE     = "#3B82F6"
 AMBER    = "#F59E0B"
 PURPLE   = "#8B5CF6"
-INK      = "#111827"
 SOFT     = "#EEF2F7"
 
 # Industry benchmarks — healthcare marketing averages
 BENCH_ROAS      = 2.8    # Avg paid media ROAS for healthcare
 BENCH_CPL       = 45.0   # Avg cost per lead ($)
 BENCH_SHOW_RATE = 78.0   # Avg appointment show rate (%)
-BENCH_LEAD_GRO  = 10.0   # Expected lead growth % vs prior
 
 st.set_page_config(
     page_title="NexoBI · Attribution Intelligence",
@@ -116,9 +113,6 @@ def df_height(n_rows: int, *, row_h: int = 36, header_h: int = 38, min_h: int = 
     h = max(min_h, min(max_h, h))
     return h
 
-
-def norm(s: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", str(s or "").lower()).strip()
 
 # ==========================================================
 # LOAD CSV
@@ -614,25 +608,6 @@ section[data-testid="stSidebar"] label {
 .cmd-health-val{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.05rem;font-weight:800;color:#0F172A;}
 .cmd-health-sub{font-size:.70rem;color:#64748B;margin-top:1px;}
 
-/* Benchmark tiles */
-.bench-tile{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px;position:relative;overflow:hidden;}
-.bench-tile::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;}
-.bt-good::before{background:#00C06B;} .bt-warn::before{background:#F59E0B;} .bt-bad::before{background:#EF4444;}
-.bench-label{font-size:.65rem;font-weight:800;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
-.bench-val{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.4rem;font-weight:900;color:#0F172A;line-height:1.1;margin-bottom:3px;}
-.bench-delta{font-size:.74rem;font-weight:700;}
-.bench-avg{font-size:.69rem;color:#94A3B8;margin-top:2px;}
-
-/* KPI benchmark row */
-.metric-bench{font-size:.70rem;color:#94A3B8;margin-top:5px;padding-top:4px;border-top:1px solid rgba(0,0,0,.05);}
-
-/* ===== SEGMENTED CONTROL — metric view pills ===== */
-[data-testid="stSegmentedControl"]{justify-content:flex-end!important;}
-[data-testid="stSegmentedControl"] button{font-size:.72rem!important;font-weight:600!important;padding:3px 10px!important;min-height:0!important;height:28px!important;}
-
-/* ===== MODE SWITCH BUTTON — subtle link-style ===== */
-.sb-reset-wrap .stButton>button[kind="secondary"][data-testid="mode_switch_btn"],
-.sb-reset-wrap .stButton>button{font-size:.72rem!important;text-align:left!important;}
 
 </style>
 """, unsafe_allow_html=True)
@@ -1416,10 +1391,6 @@ def _ai_chart(question: str) -> "go.Figure | None":
 # ==========================================================
 # AI QUERY CLIENT  (uses existing SQL connector — no extra permissions)
 # ==========================================================
-def _build_data_context() -> str:
-    return "Healthcare practice marketing analytics data"
-
-
 # Model endpoint confirmed available in this workspace
 _MODEL_ENDPOINT = "databricks-meta-llama-3-3-70b-instruct"
 
@@ -1615,10 +1586,8 @@ def ai_query_ask(question: str) -> dict:
     from databricks import sql as _dbsql
 
     endpoint = _MODEL_ENDPOINT
-    context  = _build_data_context()
     prompt = (
         "You are a concise marketing analytics assistant for a healthcare practice. "
-        f"Current dataset summary: {context}. "
         f"Answer in 2-3 clear sentences: {question}"
     )
     prompt_sql = prompt.replace("'", "''")
