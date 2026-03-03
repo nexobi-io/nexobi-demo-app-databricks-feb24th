@@ -761,36 +761,6 @@ with st.sidebar:
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # --------------------------------------------------
-    # Connected Platforms — seamless sidebar section
-    # --------------------------------------------------
-    st.markdown('''
-<div style="margin-top:16px;padding-top:14px;border-top:1px solid #F1F5F9;">
-  <div style="font-size:.64rem;font-weight:700;color:#94A3B8;text-transform:uppercase;letter-spacing:.1em;margin-bottom:9px;">Connected Platforms</div>
-  <div style="display:flex;flex-direction:column;gap:7px;">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
-      <span style="font-size:.79rem;font-weight:500;color:#334155;">Google Ads</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
-      <span style="font-size:.79rem;font-weight:500;color:#334155;">Meta Ads</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
-      <span style="font-size:.79rem;font-weight:500;color:#334155;">GA4</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
-      <span style="font-size:.79rem;font-weight:500;color:#334155;">LinkedIn</span>
-    </div>
-    <div style="display:flex;align-items:center;gap:8px;">
-      <div style="width:6px;height:6px;border-radius:50%;background:#00C06B;flex-shrink:0;"></div>
-      <span style="font-size:.79rem;font-weight:500;color:#334155;">Dentrix</span>
-    </div>
-  </div>
-</div>
-''', unsafe_allow_html=True)
 
     # --------------------------------------------------
     # Refresh button — bottom of sidebar (Databricks only)
@@ -1943,10 +1913,10 @@ def render_ai():
 # ==========================================================
 
 if page == "Dashboard":
+    render_command_center()
     if practice_mode:
         render_practice()
     else:
-        render_command_center()
         render_marketing()
 
 elif page == "AI Agent":
