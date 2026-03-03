@@ -1892,6 +1892,13 @@ section.main{margin-left:0!important;}
 @keyframes twinkle2{0%,100%{opacity:.15;transform:scale(1)}50%{opacity:.55;transform:scale(1.3)}}
 @keyframes gridShift{0%{background-position:0 0}100%{background-position:48px 48px}}
 @keyframes scanPulse{0%,100%{opacity:0}10%,90%{opacity:1}50%{opacity:.6}}
+@keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
+@keyframes inputGlow{0%,100%{box-shadow:0 0 0 0 rgba(0,192,107,0),0 2px 10px rgba(0,0,0,.05)}50%{box-shadow:0 0 22px 4px rgba(0,192,107,.16),0 2px 10px rgba(0,0,0,.05)}}
+/* ── Shimmer on gradient headline ─────────────────────── */
+.ai-catch-hi{background:linear-gradient(120deg,#00C06B 0%,#38BDF8 40%,#00C06B 80%)!important;background-size:250% auto!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important;background-clip:text!important;animation:shimmer 4s linear infinite!important;}
+/* ── Top accent line ──────────────────────────────────── */
+.ai-top-line{position:fixed;top:0;left:0;right:0;height:2px;z-index:99999;pointer-events:none;
+  background:linear-gradient(90deg,transparent 0%,rgba(0,192,107,.8) 35%,rgba(56,189,248,.55) 65%,transparent 100%);}
 
 .ai-page-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
 
@@ -1943,7 +1950,8 @@ html body textarea,
   border:1.5px solid rgba(0,192,107,.35)!important;
   border-radius:16px!important;
   padding:13px 16px!important;font-size:.9rem!important;
-  line-height:1.5!important;resize:none!important;box-shadow:none!important;
+  line-height:1.5!important;resize:none!important;
+  animation:inputGlow 3.5s ease-in-out infinite!important;
 }
 html body textarea::placeholder,
 [data-testid="stTextArea"] textarea::placeholder{color:#475569!important;-webkit-text-fill-color:#475569!important;font-size:.97rem!important;}
@@ -2014,6 +2022,7 @@ html body [data-testid="stBaseButton-primary"]:hover,
     )
 
     # ── Dashboard pill — simple anchor, query-param nav ───────
+    st.markdown('<div class="ai-top-line"></div>', unsafe_allow_html=True)
     st.markdown('<a id="nexobi-dash-pill" href="?_nav=dash" target="_self">← Dashboard</a>', unsafe_allow_html=True)
 
     # Note: AI Agent uses DATA (full dataset) — sidebar filters have no effect
