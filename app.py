@@ -1262,6 +1262,7 @@ def render_marketing():
         st.dataframe(df_light(jd), use_container_width=True, hide_index=True, height=df_height(len(jd)))
 
 def render_practice():
+    has_prev = len(PREV) > 0
     # ── Top Treatments ─────────────────────────────────────
     st.markdown('<div class="section-title">Top Treatments</div>', unsafe_allow_html=True)
     if "treatment" in CUR.columns:
