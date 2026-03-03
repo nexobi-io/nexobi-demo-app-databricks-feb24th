@@ -331,20 +331,31 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif!important;color:#0F172
 #MainMenu,footer,header{visibility:hidden;}
 .block-container{max-width:1480px;padding:.75rem 1.25rem 2.2rem;} /* condensed */
 
-[data-testid="stSidebar"]{background:#FFFFFF!important;border-right:1px solid #E2E8F0!important;}
-[data-testid="stSidebar"] *{color:#0F172A!important;}
-[data-testid="stSidebar"] label{font-size:.72rem!important;font-weight:600!important;text-transform:none!important;letter-spacing:0!important;color:#64748B!important;}
-[data-testid="stSidebar"] [data-baseweb="select"]>div{background:#F5F7FA!important;border:1px solid #E2E8F0!important;border-radius:8px!important;font-size:.82rem!important;}
-[data-testid="stSidebar"] input{background:#F5F7FA!important;border:1px solid #E2E8F0!important;border-radius:8px!important;font-size:.82rem!important;}
-[data-testid="stSidebar"] [data-baseweb="base-input"]{background:#F5F7FA!important;border:1px solid #E2E8F0!important;border-radius:8px!important;box-shadow:none!important;}
-[data-testid="stSidebar"] [data-baseweb="base-input"]:focus-within{border-color:#00C06B!important;box-shadow:none!important;}
-[data-testid="stSidebar"] [data-baseweb="input"]{background:#F5F7FA!important;border:1px solid #E2E8F0!important;border-radius:8px!important;box-shadow:none!important;}
-[data-testid="stSidebar"] div[data-testid="stDateInput"] input{font-size:.82rem!important;}
-[data-testid="stSidebar"] span[data-baseweb="tag"]{background:#E6F9F0!important;border:1px solid #00C06B!important;color:#009952!important;font-size:.75rem!important;}
-[data-testid="stSidebar"] .stRadio>div{gap:.2rem!important;flex-direction:column!important;}
-[data-testid="stSidebar"] .stRadio label{background:transparent!important;border:none!important;border-radius:8px!important;padding:5px 10px!important;font-size:.84rem!important;font-weight:500!important;color:#64748B!important;text-transform:none!important;letter-spacing:0!important;}
-[data-testid="stSidebar"] .stRadio label:has(input:checked){background:#E6F9F0!important;color:#009952!important;font-weight:600!important;}
-[data-testid="stSidebar"] .stRadio label:hover{background:#F5F7FA!important;}
+/* ── Sidebar base ─────────────────────────────────── */
+[data-testid="stSidebar"]{background:#FAFBFC!important;border-right:1px solid #EAECF0!important;}
+[data-testid="stSidebar"] *{color:#374151!important;}
+
+/* Labels — very subtle */
+[data-testid="stSidebar"] label{font-size:.7rem!important;font-weight:500!important;color:#9CA3AF!important;text-transform:none!important;letter-spacing:0!important;}
+
+/* Inputs / selects — clean, borderless feel */
+[data-testid="stSidebar"] [data-baseweb="select"]>div{background:#FFFFFF!important;border:1px solid #E5E7EB!important;border-radius:8px!important;font-size:.8rem!important;box-shadow:none!important;}
+[data-testid="stSidebar"] input{background:#FFFFFF!important;border:1px solid #E5E7EB!important;border-radius:8px!important;font-size:.8rem!important;}
+[data-testid="stSidebar"] [data-baseweb="base-input"]{background:#FFFFFF!important;border:1px solid #E5E7EB!important;border-radius:8px!important;box-shadow:none!important;}
+[data-testid="stSidebar"] [data-baseweb="base-input"]:focus-within{border-color:#00C06B!important;box-shadow:0 0 0 2px rgba(0,192,107,.1)!important;}
+[data-testid="stSidebar"] [data-baseweb="input"]{background:#FFFFFF!important;border:1px solid #E5E7EB!important;border-radius:8px!important;box-shadow:none!important;}
+[data-testid="stSidebar"] div[data-testid="stDateInput"] input{font-size:.8rem!important;}
+[data-testid="stSidebar"] span[data-baseweb="tag"]{background:#F0FDF4!important;border:1px solid #BBF7D0!important;color:#15803D!important;font-size:.72rem!important;}
+
+/* Nav radio — pill style */
+[data-testid="stSidebar"] .stRadio>div{gap:.15rem!important;flex-direction:column!important;}
+[data-testid="stSidebar"] .stRadio label{background:transparent!important;border:none!important;border-radius:8px!important;padding:6px 10px!important;font-size:.83rem!important;font-weight:500!important;color:#6B7280!important;text-transform:none!important;letter-spacing:0!important;}
+[data-testid="stSidebar"] .stRadio label:has(input:checked){background:#F0FDF4!important;color:#15803D!important;font-weight:600!important;}
+[data-testid="stSidebar"] .stRadio label:hover{background:#F9FAFB!important;color:#374151!important;}
+
+/* Checkbox labels — lighter weight */
+[data-testid="stSidebar"] .stCheckbox label{font-size:.78rem!important;font-weight:400!important;color:#6B7280!important;}
+[data-testid="stSidebar"] .stCheckbox label:has(input:checked){color:#111827!important;font-weight:500!important;}
 
 .nexo-header{display:flex;align-items:center;justify-content:space-between;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;padding:12px 18px;margin-bottom:.9rem;box-shadow:0 2px 12px rgba(0,0,0,.05);}
 .nexo-brand-name{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.15rem;font-weight:900;color:#0F172A;}
@@ -396,9 +407,9 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif!important;color:#0F172
 [data-testid="baseButton-primary"]{background:#00C06B!important;color:#fff!important;border:none!important;box-shadow:0 2px 8px rgba(0,192,107,.28)!important;}
 [data-testid="baseButton-primary"]:hover{background:#009952!important;}
 
-/* Sidebar buttons — subtle ghost style */
-section[data-testid="stSidebar"] .stButton>button{background:#F5F7FA!important;color:#64748B!important;border:1px solid #E2E8F0!important;border-radius:8px!important;font-weight:500!important;font-size:.80rem!important;padding:.4rem .75rem!important;}
-section[data-testid="stSidebar"] .stButton>button:hover{background:#E6F9F0!important;border-color:#00C06B!important;color:#009952!important;}
+/* Sidebar buttons — muted ghost */
+section[data-testid="stSidebar"] .stButton>button{background:transparent!important;color:#9CA3AF!important;border:1px solid #E5E7EB!important;border-radius:8px!important;font-weight:400!important;font-size:.78rem!important;padding:.35rem .75rem!important;box-shadow:none!important;}
+section[data-testid="stSidebar"] .stButton>button:hover{background:#F0FDF4!important;border-color:#00C06B!important;color:#15803D!important;}
 
 /* Reset filters — extra subtle, text-link feel */
 .sb-reset-wrap .stButton>button{background:transparent!important;color:#94A3B8!important;border:none!important;font-size:.72rem!important;font-weight:400!important;padding:.2rem .5rem!important;text-decoration:underline!important;text-underline-offset:3px!important;box-shadow:none!important;}
@@ -649,92 +660,87 @@ def list_unique(col: str):
 
 with st.sidebar:
 
-    # --- Data mode indicator (compact dot) ---
+    # --- Data mode indicator ---
     _is_live = st.session_state.get("force_live_mode", False) and not bool(_FALLBACK_WARN)
     _dot_color = "#C2410C" if _FALLBACK_WARN else ("#15803D" if _is_live else "#94A3B8")
-    _dot_label = "CSV (fallback)" if _FALLBACK_WARN else ("Live · Databricks" if _is_live else "Local CSV")
+    _dot_label = "CSV fallback" if _FALLBACK_WARN else ("Live · Databricks" if _is_live else "Local CSV")
     st.markdown(
-        f'<div style="display:flex;align-items:center;gap:6px;padding:3px 2px;margin-bottom:6px;">'
-        f'<span style="width:6px;height:6px;border-radius:50%;background:{_dot_color};'
+        f'<div style="display:flex;align-items:center;gap:5px;padding:2px 0 10px;">'
+        f'<span style="width:5px;height:5px;border-radius:50%;background:{_dot_color};'
         f'display:inline-block;flex-shrink:0;"></span>'
-        f'<span style="font-size:.67rem;color:#94A3B8;font-weight:500;">{_dot_label}</span>'
+        f'<span style="font-size:.63rem;color:#CBD5E1;font-weight:400;letter-spacing:.02em;">{_dot_label}</span>'
         f'</div>',
         unsafe_allow_html=True
     )
 
     # --- Navigation ---
-    page = st.radio("Navigation", ["Dashboard", "AI Agent"], key="nav")
+    page = st.radio("", ["Dashboard", "AI Agent"], key="nav", label_visibility="collapsed")
 
-    st.markdown("---")
+    st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:1px;background:#F1F5F9;margin:0 0 10px;"></div>', unsafe_allow_html=True)
+
+    # --- Section label: Filters ---
+    st.markdown(
+        '<div style="font-size:.6rem;font-weight:700;color:#CBD5E1;letter-spacing:.1em;'
+        'text-transform:uppercase;margin-bottom:6px;">Filters</div>',
+        unsafe_allow_html=True
+    )
+
     # --------------------------------------------------
-    # State init (kept here for stability)
+    # State init
     # --------------------------------------------------
-    # Default date range = previous calendar month (clamped to data bounds)
     _today        = date.today()
     _pm_end       = _today.replace(day=1) - timedelta(days=1)
     _pm_start     = _pm_end.replace(day=1)
     _default_start = max(_pm_start, pd.to_datetime(MIN_DATE).date())
     _default_end   = min(_pm_end,   pd.to_datetime(MAX_DATE).date())
 
-    # --------------------------------------------------
-    # Reset flag — must be checked BEFORE widgets render
-    # so Streamlit allows overwriting widget-bound keys
-    # --------------------------------------------------
     if st.session_state.pop("_reset_filters", False):
-        st.session_state["f_start"]   = _default_start
-        st.session_state["f_end"]     = _default_end
-        st.session_state["f_sources"] = ["All"]
-        st.session_state["f_channel"] = "All"
+        st.session_state["f_start"]    = _default_start
+        st.session_state["f_end"]      = _default_end
+        st.session_state["f_sources"]  = ["All"]
+        st.session_state["f_channel"]  = "All"
         st.session_state["f_campaign"] = "All"
 
-    # Init filter keys only if not already set
-    if "f_start" not in st.session_state:
-        st.session_state["f_start"] = _default_start
-    if "f_end" not in st.session_state:
-        st.session_state["f_end"] = _default_end
-    if "f_sources" not in st.session_state:
-        st.session_state["f_sources"] = ["All"]
-    if "f_channel" not in st.session_state:
-        st.session_state["f_channel"] = "All"
-    if "f_campaign" not in st.session_state:
-        st.session_state["f_campaign"] = "All"
+    if "f_start"    not in st.session_state: st.session_state["f_start"]    = _default_start
+    if "f_end"      not in st.session_state: st.session_state["f_end"]      = _default_end
+    if "f_sources"  not in st.session_state: st.session_state["f_sources"]  = ["All"]
+    if "f_channel"  not in st.session_state: st.session_state["f_channel"]  = "All"
+    if "f_campaign" not in st.session_state: st.session_state["f_campaign"] = "All"
 
     d1, d2 = st.columns(2)
     with d1:
-        start = st.date_input("Start Date", value=st.session_state["f_start"], key="f_start")
+        start = st.date_input("Start", value=st.session_state["f_start"], key="f_start")
     with d2:
-        end   = st.date_input("End Date",   value=st.session_state["f_end"],   key="f_end")
+        end   = st.date_input("End",   value=st.session_state["f_end"],   key="f_end")
 
     sources = ["All"] + list_unique("data_source")
     if "Practice CRM" not in sources:
         sources.append("Practice CRM")
-    sources_selected = st.multiselect("Data Source", options=sources, default=st.session_state["f_sources"], key="f_sources")
+    sources_selected = st.multiselect("Source", options=sources, default=st.session_state["f_sources"], key="f_sources")
     if "All" in sources_selected:
         sources_selected = []
+
     c1, c2 = st.columns(2)
     with c1:
         channel_opts = ["All"] + list_unique("channel_group")
-        channel = st.selectbox("Channel", channel_opts, index=(channel_opts.index(st.session_state["f_channel"]) if st.session_state["f_channel"] in channel_opts else 0), key="f_channel")
+        channel = st.selectbox("Channel", channel_opts,
+            index=(channel_opts.index(st.session_state["f_channel"]) if st.session_state["f_channel"] in channel_opts else 0),
+            key="f_channel")
     with c2:
         camp_opts = ["All"] + list_unique("campaign")
-        campaign = st.selectbox("Campaign", camp_opts, index=(camp_opts.index(st.session_state["f_campaign"]) if st.session_state["f_campaign"] in camp_opts else 0), key="f_campaign")
+        campaign = st.selectbox("Campaign", camp_opts,
+            index=(camp_opts.index(st.session_state["f_campaign"]) if st.session_state["f_campaign"] in camp_opts else 0),
+            key="f_campaign")
 
-    # --------------------------------------------------
-    # Reset filters — sets flag, reruns, flag clears
-    # values BEFORE widgets render on next run
-    # --------------------------------------------------
     st.markdown('<div class="sb-reset-wrap">', unsafe_allow_html=True)
     if st.button("Reset filters", use_container_width=True, key="reset_filters"):
         st.session_state["_reset_filters"] = True
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-
-    # --------------------------------------------------
-    # Refresh button — bottom of sidebar (Databricks only)
-    # --------------------------------------------------
     if _DBX_MODE:
-        st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
         st.markdown('<div class="refresh-wrap">', unsafe_allow_html=True)
         if st.button("↺ Refresh", key="refresh_data"):
             load_data_databricks.clear()
@@ -786,10 +792,10 @@ visible_blocks = {
 
 # ── Sidebar "Your View" picker (shown only on Dashboard page) ──
 if page == "Dashboard":
-    st.sidebar.markdown("---")
+    st.sidebar.markdown('<div style="height:1px;background:#F1F5F9;margin:10px 0 10px;"></div>', unsafe_allow_html=True)
     st.sidebar.markdown(
-        '<div style="font-size:.67rem;font-weight:700;color:#94A3B8;'
-        'letter-spacing:.07em;text-transform:uppercase;margin-bottom:.2rem;">'
+        '<div style="font-size:.6rem;font-weight:700;color:#CBD5E1;'
+        'letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">'
         'Your View</div>',
         unsafe_allow_html=True
     )
@@ -1165,28 +1171,26 @@ def render_command_center():
 </div>
 ''', unsafe_allow_html=True)
 
-    # ── Top Signals (toggleable) ───────────────────────────
+    # ── Top Signals (toggleable) — 3-column cards ──────────
     if "signals" in visible_blocks:
         st.markdown('<div class="section-title" style="margin-top:.5rem;">Signals</div>', unsafe_allow_html=True)
         _dot_map = {"sb-pill-red": "#EF4444", "sb-pill-amber": "#F59E0B", "sb-pill-green": "#00C06B"}
-        _sig_rows = ""
-        for _si, (sev, pill_cls, title, detail, action) in enumerate(_alerts[:3]):
+        _sc1, _sc2, _sc3 = st.columns(3, gap="small")
+        for _col, (sev, pill_cls, title, detail, action) in zip([_sc1, _sc2, _sc3], _alerts[:3]):
             _dc = _dot_map.get(pill_cls, "#00C06B")
-            _border = "border-bottom:1px solid #F1F5F9;" if _si < 2 else ""
-            _sig_rows += (
-                f'<div style="display:flex;align-items:center;gap:12px;padding:8px 0;{_border}">'
-                f'<span style="width:7px;height:7px;border-radius:50%;background:{_dc};'
-                f'flex-shrink:0;display:inline-block;"></span>'
-                f'<span style="font-size:.81rem;font-weight:700;color:#0F172A;min-width:155px;'
-                f'flex-shrink:0;">{title}</span>'
-                f'<span style="font-size:.76rem;color:#64748B;">{detail}</span>'
-                f'</div>'
-            )
-        st.markdown(
-            f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
-            f'padding:6px 16px;margin-bottom:.5rem;">{_sig_rows}</div>',
-            unsafe_allow_html=True
-        )
+            with _col:
+                st.markdown(
+                    f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;'
+                    f'border-left:3px solid {_dc};border-radius:10px;padding:11px 14px;">'
+                    f'<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">'
+                    f'<span style="width:6px;height:6px;border-radius:50%;background:{_dc};'
+                    f'flex-shrink:0;display:inline-block;"></span>'
+                    f'<span style="font-size:.79rem;font-weight:700;color:#0F172A;">{title}</span>'
+                    f'</div>'
+                    f'<div style="font-size:.73rem;color:#64748B;line-height:1.45;">{detail}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
 
     # ── Dual Forecasts (toggleable) ────────────────────────
     if "forecasts" in visible_blocks:
