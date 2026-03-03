@@ -50,11 +50,11 @@ BENCH_SHOW_RATE = 78.0   # Avg appointment show rate (%)
 
 # Dashboard block registry — drives the "Your View" sidebar picker
 BLOCK_REGISTRY = [
-    {"id": "banner",     "icon": "📊", "label": "Health Banner & KPIs", "modes": {"both"}},
-    {"id": "signals",    "icon": "🔔", "label": "Top Signals",           "modes": {"both"}},
-    {"id": "forecasts",  "icon": "📈", "label": "30-Day Forecasts",      "modes": {"both"}},
-    {"id": "journey",    "icon": "🗺️", "label": "Patient Journey",       "modes": {"marketing"}},
-    {"id": "treatments", "icon": "💊", "label": "Top Treatments",        "modes": {"practice"}},
+    {"id": "banner",     "icon": "▣", "label": "Health Banner & KPIs", "modes": {"both"}},
+    {"id": "signals",    "icon": "◆", "label": "Top Signals",           "modes": {"both"}},
+    {"id": "forecasts",  "icon": "↗", "label": "30-Day Forecasts",      "modes": {"both"}},
+    {"id": "journey",    "icon": "▸", "label": "Patient Journey",       "modes": {"marketing"}},
+    {"id": "treatments", "icon": "✦", "label": "Top Treatments",        "modes": {"practice"}},
 ]
 
 st.set_page_config(
@@ -817,7 +817,7 @@ if page == "Dashboard":
     st.sidebar.markdown(
         '<div style="font-size:.7rem;font-weight:700;color:#94A3B8;'
         'letter-spacing:.07em;text-transform:uppercase;margin-bottom:.3rem;">'
-        '📐&nbsp; Your View</div>',
+        '◈&nbsp; Your View</div>',
         unsafe_allow_html=True
     )
     for _b in BLOCK_REGISTRY:
