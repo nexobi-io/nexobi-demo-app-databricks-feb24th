@@ -363,7 +363,7 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif!important;color:#0F172
 .nexo-brand-sub{font-size:.8rem;color:#64748B;}
 .nexo-badge{background:#E6F9F0;color:#009952;border:1px solid #00C06B;border-radius:999px;font-size:.72rem;font-weight:900;padding:4px 14px;}
 
-.section-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:.78rem;font-weight:900;color:#009952;text-transform:uppercase;letter-spacing:.12em;margin:.9rem 0 .55rem;display:flex;align-items:center;gap:8px;}
+.section-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:.78rem;font-weight:900;color:#009952;text-transform:uppercase;letter-spacing:.12em;margin:1.4rem 0 .55rem;display:flex;align-items:center;gap:8px;}
 .section-title::before{content:'';display:block;width:3px;height:16px;background:#00C06B;border-radius:4px;}
 
 .metric-card{background:#FFFFFF;border:1px solid #E2E8F0;border-radius:14px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.04);}
@@ -1169,7 +1169,7 @@ def render_command_center():
 
     # ── Top Signals (toggleable) — 3-column cards ──────────
     if "signals" in visible_blocks:
-        st.markdown('<div class="section-title" style="margin-top:.5rem;">Signals</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">Signals</div>', unsafe_allow_html=True)
         _dot_map = {"sb-pill-red": "#EF4444", "sb-pill-amber": "#F59E0B", "sb-pill-green": "#00C06B"}
         _sc1, _sc2, _sc3 = st.columns(3, gap="small")
         for _col, (sev, pill_cls, title, detail, action) in zip([_sc1, _sc2, _sc3], _alerts[:3]):
@@ -1190,7 +1190,7 @@ def render_command_center():
 
     # ── Dual Forecasts (toggleable) ────────────────────────
     if "forecasts" in visible_blocks:
-        st.markdown('<div class="section-title" style="margin-top:1.4rem;">30-Day Forecasts</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-title">30-Day Forecasts</div>', unsafe_allow_html=True)
         _f1, _f2 = st.columns(2, gap="medium")
         with _f1:
             fig_rev, proj_rev = plot_forecast(
@@ -1211,23 +1211,39 @@ def render_command_center():
             else:
                 st.info("Not enough data for production forecast.")
         with _f2:
-            fig_bk, proj_bk = plot_forecast(
-                base, col="booked",
-                title="Booked Appointments — 30-Day Projection",
-                color=PURPLE, is_money=False
-            )
-            if fig_bk:
+            try:
+                _bk_daily = (base.groupby("date")["booked"].sum()
+                               .reset_index().sort_values("date"))
+                _bk_daily["date"] = pd.to_datetime(_bk_daily["date"])
+                _bk_weekly = (_bk_daily.set_index("date")
+                                .resample("W-MON")["booked"].sum()
+                                .reset_index())
+                _proj_bk = int(_bk_weekly["booked"].mean() * 4) if len(_bk_weekly) else 0
                 st.markdown(
                     f'<div style="font-size:.76rem;color:{MUTED};margin-bottom:5px;">'
-                    f'Projected: <b style="color:{TEXT};font-size:.85rem;">{fmt(proj_bk)} appts</b>'
+                    f'Projected: <b style="color:{TEXT};font-size:.85rem;">{fmt(_proj_bk)} appts</b>'
                     f' &nbsp;·&nbsp; next 30 days</div>',
                     unsafe_allow_html=True
                 )
-                st.markdown('<div class="chart-card">', unsafe_allow_html=True)
-                st.plotly_chart(fig_bk, use_container_width=True, config={"displayModeBar": False})
-                st.markdown('</div>', unsafe_allow_html=True)
-            else:
-                st.info("Not enough data for appointments forecast.")
+                if len(_bk_weekly) >= 2:
+                    _fig_bk = go.Figure()
+                    _fig_bk.add_trace(go.Bar(
+                        x=_bk_weekly["date"],
+                        y=_bk_weekly["booked"],
+                        marker_color=PURPLE,
+                        marker_opacity=0.82,
+                        marker_line_width=0,
+                        hovertemplate="Week of %{x|%b %d}<br><b>%{y:,.0f} appts</b><extra></extra>",
+                        name="Booked",
+                    ))
+                    _fig_bk.update_layout(**base_layout("Booked Appointments — Weekly", 280))
+                    st.markdown('<div class="chart-card">', unsafe_allow_html=True)
+                    st.plotly_chart(_fig_bk, use_container_width=True, config={"displayModeBar": False})
+                    st.markdown('</div>', unsafe_allow_html=True)
+                else:
+                    st.info("Not enough data for appointments chart.")
+            except Exception:
+                st.info("Not enough data for appointments chart.")
 
 
 
