@@ -217,7 +217,15 @@ def load_data_databricks(catalog: str, schema: str, table: str) -> pd.DataFrame:
     return _normalize_df(df)
 
 
-# ---- Load data from Databricks ----
+@st.cache_data(ttl=3600)
+def _load_csv_fallback() -> pd.DataFrame:
+    """Local dev fallback — reads data.csv from project root."""
+    _path = os.path.join(os.path.dirname(__file__), "data.csv")
+    df = pd.read_csv(_path, parse_dates=["date"])
+    return _normalize_df(df)
+
+
+# ---- Load data ----
 # Handle query-param navigation from AI Agent fixed "← Dashboard" button
 if st.query_params.get("_nav") == "dash":
     st.query_params.clear()
@@ -225,9 +233,12 @@ if st.query_params.get("_nav") == "dash":
 
 try:
     DATA = load_data_databricks(DBX_CATALOG, DBX_SCHEMA, DBX_TABLE)
-except Exception as _dbx_err:
-    st.error(f"⚠️ Could not connect to Databricks: `{_dbx_err}`")
-    st.stop()
+except Exception:
+    try:
+        DATA = _load_csv_fallback()
+    except Exception as _csv_err:
+        st.error(f"⚠️ No data source available. Databricks unreachable and local CSV failed: `{_csv_err}`")
+        st.stop()
 
 MIN_DATE = DATA["date"].min()
 MAX_DATE = DATA["date"].max()
