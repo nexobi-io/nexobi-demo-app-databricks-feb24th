@@ -216,11 +216,6 @@ def load_data_databricks(catalog: str, schema: str, table: str) -> pd.DataFrame:
     return _normalize_df(df)
 
 
-# Handle query-param navigation from AI Agent fixed "← Dashboard" button
-if st.query_params.get("_nav") == "dash":
-    st.query_params.clear()
-    st.session_state["nav"] = "Dashboard"
-
 # ── Load from Databricks ────────────────────────────────────────
 _ACTIVE_MODE = "databricks"
 _DBX_MODE    = True
@@ -584,11 +579,8 @@ with st.sidebar:
         unsafe_allow_html=True
     )
 
-    # --- Navigation ---
-    page = st.radio("", ["Dashboard", "AI Agent"], key="nav", label_visibility="collapsed")
-
-    st.markdown('<div style="height:6px"></div>', unsafe_allow_html=True)
-    st.markdown('<div style="height:1px;background:#F1F5F9;margin:0 0 10px;"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:4px"></div>', unsafe_allow_html=True)
+    st.markdown('<div style="height:1px;background:rgba(255,255,255,.08);margin:0 0 10px;"></div>', unsafe_allow_html=True)
 
     # --- Section label: Filters ---
     st.markdown(
@@ -1735,10 +1727,35 @@ def render_ai():
                 st.rerun()
 
 # ==========================================================
-# ROUTER
+# TABS
 # ==========================================================
 
-if page == "Dashboard":
+# Tab bar styling
+st.markdown("""<style>
+.stTabs{margin-top:.25rem;}
+.stTabs [data-baseweb="tab-list"]{
+  gap:0;border-bottom:1.5px solid rgba(255,255,255,.09)!important;
+  background:transparent!important;padding:0;
+}
+.stTabs [data-baseweb="tab"]{
+  color:#64748B!important;font-weight:600!important;font-size:.88rem!important;
+  padding:.55rem 1.5rem!important;border-radius:8px 8px 0 0!important;
+  border:none!important;background:transparent!important;
+  letter-spacing:.02em;transition:all .18s;
+}
+.stTabs [data-baseweb="tab"]:hover{color:#CBD5E1!important;background:rgba(255,255,255,.04)!important;}
+.stTabs [aria-selected="true"]{
+  color:#00C06B!important;
+  border-bottom:2.5px solid #00C06B!important;
+  background:rgba(0,192,107,.06)!important;
+}
+.stTabs [data-baseweb="tab-highlight"]{display:none!important;}
+.stTabs [data-baseweb="tab-border"]{display:none!important;}
+</style>""", unsafe_allow_html=True)
+
+_tab_dash, _tab_genie = st.tabs(["  📊  Dashboard", "  ✦  Genie"])
+
+with _tab_dash:
     st.markdown('<div class="dash-orbs"><div class="do1"></div><div class="do2"></div><div class="do3"></div></div>', unsafe_allow_html=True)
     render_command_center()
     if practice_mode:
@@ -1748,22 +1765,14 @@ if page == "Dashboard":
         if "journey" in visible_blocks:
             render_marketing()
 
-elif page == "AI Agent":
-    # ── Full-bleed dark navy aurora — hide everything, bleed full page ──
+with _tab_genie:
+    # ── Genie tab — aurora styling scoped to tab content ──────────
     st.markdown("""<style>
-[data-testid="stSidebar"]{display:none!important;}
-[data-testid="stHeader"]{display:none!important;}
-[data-testid="stToolbar"]{display:none!important;}
-header{display:none!important;}footer{display:none!important;}
-.nexo-header{display:none!important;}
-section.main{margin-left:0!important;}
-.stApp{
-  --background-color:#060D1A!important;
-  --secondary-background-color:rgba(255,255,255,.07)!important;
-  --text-color:#CBD5E1!important;
-  background:#060D1A!important;min-height:100vh!important;
-}
-.block-container{max-width:680px!important;margin:0 auto!important;padding-top:1rem!important;padding-bottom:3rem!important;background:transparent!important;}
+.genie-wrap{position:relative;min-height:80vh;overflow:hidden;border-radius:16px;
+  background:linear-gradient(160deg,#060D1A 0%,#071220 60%,#060D1A 100%);
+  padding:0 0 2rem;}
+.genie-inner{position:relative;z-index:2;max-width:680px;margin:0 auto;padding:1rem 1.5rem 3rem;}
+.block-container{max-width:100%!important;padding-top:.5rem!important;}
 /* ── Aurora orbs + particles + grid ──────────────────────── */
 @keyframes breathe{0%,100%{opacity:.9;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
 @keyframes drift1{0%{transform:translate(0,0)}25%{transform:translate(18px,-24px)}50%{transform:translate(-12px,-40px)}75%{transform:translate(22px,-14px)}100%{transform:translate(0,0)}}
@@ -1778,13 +1787,14 @@ section.main{margin-left:0!important;}
 @keyframes inputGlow{0%,100%{box-shadow:0 0 0 0 rgba(0,192,107,0),0 2px 10px rgba(0,0,0,.05)}50%{box-shadow:0 0 22px 4px rgba(0,192,107,.16),0 2px 10px rgba(0,0,0,.05)}}
 /* ── Shimmer on gradient headline ─────────────────────── */
 .ai-catch-hi{background:linear-gradient(120deg,#00C06B 0%,#38BDF8 40%,#00C06B 80%)!important;background-size:250% auto!important;-webkit-background-clip:text!important;-webkit-text-fill-color:transparent!important;background-clip:text!important;animation:shimmer 4s linear infinite!important;}
-/* ── Top accent line ──────────────────────────────────── */
-.ai-top-line{position:fixed;top:0;left:0;right:0;height:2px;z-index:99999;pointer-events:none;
+/* ── Top accent line — contained in genie wrap ────────── */
+.ai-top-line{height:2px;width:100%;pointer-events:none;margin-bottom:.5rem;
   background:linear-gradient(90deg,transparent 0%,rgba(0,192,107,.8) 35%,rgba(56,189,248,.55) 65%,transparent 100%);}
 
-.ai-page-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
+/* Aurora orbs — contained, not fixed ──────────────────── */
+.ai-page-orbs{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden;border-radius:16px;}
 
-/* Grid overlay — very subtle green mesh */
+/* Grid overlay */
 .ai-page-orbs .ai-grid{
   position:absolute;inset:0;
   background-image:linear-gradient(rgba(0,192,107,.028) 1px,transparent 1px),
@@ -1799,7 +1809,7 @@ section.main{margin-left:0!important;}
 .ai-page-orbs .op3{position:absolute;width:280px;height:280px;background:rgba(0,192,107,.06);border-radius:50%;filter:blur(75px);top:40%;right:-40px;animation:floatA 17s ease-in-out infinite reverse,breathe 8s ease-in-out infinite;}
 .ai-page-orbs .op4{position:absolute;width:200px;height:200px;background:rgba(0,212,120,.07);border-radius:50%;filter:blur(60px);top:55%;left:10%;animation:floatB 11s ease-in-out infinite,breathe 9s ease-in-out 2s infinite;}
 
-/* Floating particles — tiny glowing dots */
+/* Floating particles */
 .ai-page-orbs .pt{position:absolute;border-radius:50%;pointer-events:none;}
 .ai-page-orbs .pt1{width:3px;height:3px;background:rgba(0,192,107,.7);top:18%;left:12%;animation:drift1 9s ease-in-out infinite,twinkle 3.2s ease-in-out infinite;}
 .ai-page-orbs .pt2{width:2px;height:2px;background:rgba(0,192,107,.5);top:35%;left:72%;animation:drift2 11s ease-in-out infinite,twinkle 4.1s ease-in-out .8s infinite;}
@@ -1809,18 +1819,6 @@ section.main{margin-left:0!important;}
 .ai-page-orbs .pt6{width:2px;height:2px;background:rgba(0,192,107,.45);top:50%;left:5%;animation:drift2 10s ease-in-out .5s infinite,twinkle2 4.4s ease-in-out 2s infinite;}
 .ai-page-orbs .pt7{width:3px;height:3px;background:rgba(0,212,120,.5);top:88%;left:40%;animation:drift3 13s ease-in-out .3s infinite,twinkle 3s ease-in-out 1s infinite;}
 .ai-page-orbs .pt8{width:2px;height:2px;background:rgba(0,192,107,.35);top:10%;left:45%;animation:drift4 9s ease-in-out 2s infinite,twinkle2 5.2s ease-in-out infinite;}
-/* ── Dashboard pill — fixed top-left anchor link ─────── */
-#nexobi-dash-pill{
-  position:fixed;top:14px;left:14px;z-index:10000;
-  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);
-  border-radius:999px;padding:5px 14px;
-  color:rgba(255,255,255,.55);font-size:.69rem;font-weight:600;
-  cursor:pointer;font-family:inherit;letter-spacing:.03em;
-  text-decoration:none;display:inline-flex;align-items:center;gap:5px;
-  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-  transition:all .2s;
-}
-#nexobi-dash-pill:hover{background:rgba(0,192,107,.12);color:#00C06B;border-color:rgba(0,192,107,.35);}
 /* ── Textarea — white bg, DARK text, visible cursor ─────── */
 html body textarea,
 [data-testid="stTextArea"] textarea,
@@ -1892,21 +1890,21 @@ html body [data-testid="stBaseButton-primary"]:hover,
 .stMarkdownContainer p{color:rgba(255,255,255,.26)!important;}
 </style>""", unsafe_allow_html=True)
 
-    # ── Full-page aurora orbs + grid + particles ─────────────
+    # ── Genie tab wrapper — dark aurora container ─────────────
     st.markdown(
+        '<div class="genie-wrap">'
         '<div class="ai-page-orbs">'
         '<div class="ai-grid"></div>'
         '<div class="op1"></div><div class="op2"></div><div class="op3"></div><div class="op4"></div>'
         '<div class="pt pt1"></div><div class="pt pt2"></div><div class="pt pt3"></div>'
         '<div class="pt pt4"></div><div class="pt pt5"></div><div class="pt pt6"></div>'
         '<div class="pt pt7"></div><div class="pt pt8"></div>'
-        '</div>',
+        '</div>'
+        '<div class="ai-top-line"></div>'
+        '<div class="genie-inner">',
         unsafe_allow_html=True
     )
 
-    # ── Dashboard pill — simple anchor, query-param nav ───────
-    st.markdown('<div class="ai-top-line"></div>', unsafe_allow_html=True)
-    st.markdown('<a id="nexobi-dash-pill" href="?_nav=dash" target="_self"><span style="color:#00C06B;font-size:.6rem;">◆</span> ← Dashboard</a>', unsafe_allow_html=True)
-
-    # Note: AI Agent uses DATA (full dataset) — sidebar filters have no effect
     render_ai()
+
+    st.markdown('</div></div>', unsafe_allow_html=True)
