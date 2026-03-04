@@ -642,15 +642,12 @@ with st.sidebar:
         st.session_state["f_sources"]  = ["All"]
         st.session_state["f_channel"]  = "All"
         st.session_state["f_campaign"] = "All"
-        st.session_state["f_location"] = ["All Locations"]
 
     if "f_start"    not in st.session_state: st.session_state["f_start"]    = _default_start
     if "f_end"      not in st.session_state: st.session_state["f_end"]      = _default_end
     if "f_sources"  not in st.session_state: st.session_state["f_sources"]  = ["All"]
     if "f_channel"  not in st.session_state: st.session_state["f_channel"]  = "All"
     if "f_campaign" not in st.session_state: st.session_state["f_campaign"] = "All"
-    if "f_location" not in st.session_state: st.session_state["f_location"] = ["All Locations"]
-
     # --- Location selector (multi-location support) ---
     _has_locations = "location" in DATA.columns and DATA["location"].nunique() > 1
     _loc_opts = (
@@ -658,19 +655,8 @@ with st.sidebar:
         if _has_locations
         else ["All Locations", "Main · Demo", "North · Demo", "South · Demo"]
     )
-    _loc_default = st.session_state.get("f_location", ["All Locations"])
-    _loc_default = [v for v in _loc_default if v in _loc_opts] or ["All Locations"]
-
-    st.markdown(
-        '<div style="font-size:.6rem;font-weight:700;color:#CBD5E1;letter-spacing:.1em;'
-        'text-transform:uppercase;margin-bottom:4px;">Location</div>',
-        unsafe_allow_html=True
-    )
     locations_selected = st.multiselect(
-        "", options=_loc_opts,
-        default=_loc_default,
-        key="f_location",
-        label_visibility="collapsed"
+        "Location", options=_loc_opts, default=["All Locations"]
     )
     if not locations_selected or "All Locations" in locations_selected:
         locations_selected = []
