@@ -642,12 +642,35 @@ with st.sidebar:
         st.session_state["f_sources"]  = ["All"]
         st.session_state["f_channel"]  = "All"
         st.session_state["f_campaign"] = "All"
+        st.session_state["f_location"] = ["All Locations"]
 
     if "f_start"    not in st.session_state: st.session_state["f_start"]    = _default_start
     if "f_end"      not in st.session_state: st.session_state["f_end"]      = _default_end
     if "f_sources"  not in st.session_state: st.session_state["f_sources"]  = ["All"]
     if "f_channel"  not in st.session_state: st.session_state["f_channel"]  = "All"
     if "f_campaign" not in st.session_state: st.session_state["f_campaign"] = "All"
+    if "f_location" not in st.session_state: st.session_state["f_location"] = ["All Locations"]
+
+    # --- Location selector (multi-location support) ---
+    _has_locations = "location" in DATA.columns and DATA["location"].nunique() > 1
+    if _has_locations:
+        _loc_opts = ["All Locations"] + sorted(DATA["location"].dropna().astype(str).unique().tolist())
+        st.markdown(
+            '<div style="font-size:.6rem;font-weight:700;color:#CBD5E1;letter-spacing:.1em;'
+            'text-transform:uppercase;margin-bottom:4px;">Location</div>',
+            unsafe_allow_html=True
+        )
+        locations_selected = st.multiselect(
+            "", options=_loc_opts,
+            default=st.session_state["f_location"],
+            key="f_location",
+            label_visibility="collapsed"
+        )
+        if not locations_selected or "All Locations" in locations_selected:
+            locations_selected = []
+        st.markdown('<div style="height:1px;background:rgba(255,255,255,.07);margin:8px 0 10px;"></div>', unsafe_allow_html=True)
+    else:
+        locations_selected = []
 
     d1, d2 = st.columns(2)
     with d1:
@@ -688,8 +711,10 @@ with st.sidebar:
             st.rerun()
         st.markdown('</div>', unsafe_allow_html=True)
 
-def apply_filters(df: pd.DataFrame, s: date, e: date, srcs, ch: str, camp: str) -> pd.DataFrame:
+def apply_filters(df: pd.DataFrame, s: date, e: date, srcs, ch: str, camp: str, locs=None) -> pd.DataFrame:
     out = df[(df["date"] >= s) & (df["date"] <= e)].copy()
+    if locs and "location" in out.columns:
+        out = out[out["location"].astype(str).isin([str(x) for x in locs])]
     if srcs:
         out = out[out["data_source"].astype(str).isin([str(x) for x in srcs])]
     if ch != "All":
@@ -707,47 +732,23 @@ period_days = (end - start).days + 1
 prev_start  = start - timedelta(days=period_days)
 prev_end    = end - timedelta(days=period_days)
 
-CUR = apply_filters(DATA, start, end, sources_selected, channel, campaign)
-PREV = apply_filters(DATA, prev_start, prev_end, sources_selected, channel, campaign)
+CUR = apply_filters(DATA, start, end, sources_selected, channel, campaign, locations_selected)
+PREV = apply_filters(DATA, prev_start, prev_end, sources_selected, channel, campaign, locations_selected)
 
 practice_mode = (len(sources_selected) == 1 and str(sources_selected[0]).strip() == "Practice CRM")
 
 # Marketing visuals should NOT include Practice CRM unless explicitly selected.
 include_practice_in_marketing = practice_mode or ("Practice CRM" in [str(x).strip() for x in (sources_selected or [])])
 
-# ── Configurable view — block visibility ───────────────────────
-for _b in BLOCK_REGISTRY:
-    if f"blk_{_b['id']}" not in st.session_state:
-        st.session_state[f"blk_{_b['id']}"] = True  # all on by default
-
-# Force treatments ON whenever entering practice/CRM mode
-_was_practice = st.session_state.get("_prev_practice_mode", not practice_mode)
-if practice_mode and not _was_practice:
-    st.session_state["blk_treatments"] = True
-st.session_state["_prev_practice_mode"] = practice_mode
-
+# ── Block visibility — all applicable blocks always shown ──────
 visible_blocks = {
     b["id"] for b in BLOCK_REGISTRY
-    if st.session_state.get(f"blk_{b['id']}", True)
-}
-
-# ── Sidebar "Your View" picker (shown only on Dashboard page) ──
-if page == "Dashboard":
-    st.sidebar.markdown('<div style="height:1px;background:#F1F5F9;margin:10px 0 10px;"></div>', unsafe_allow_html=True)
-    st.sidebar.markdown(
-        '<div style="font-size:.6rem;font-weight:700;color:#CBD5E1;'
-        'letter-spacing:.1em;text-transform:uppercase;margin-bottom:6px;">'
-        'Your View</div>',
-        unsafe_allow_html=True
+    if (
+        "both" in b["modes"]
+        or ("practice" in b["modes"] and practice_mode)
+        or ("marketing" in b["modes"] and not practice_mode)
     )
-    for _b in BLOCK_REGISTRY:
-        _applies = (
-            "both" in _b["modes"]
-            or ("practice" in _b["modes"] and practice_mode)
-            or ("marketing" in _b["modes"] and not practice_mode)
-        )
-        if _applies:
-            st.sidebar.checkbox(_b['label'], key=f"blk_{_b['id']}")
+}
 CUR_MKT  = CUR.copy()
 PREV_MKT = PREV.copy()
 if not include_practice_in_marketing:
@@ -1037,6 +1038,7 @@ def render_command_center():
     sc_label = "Strong" if score >= 80 else ("Moderate" if score >= 60 else "Needs Attention")
 
     period_label = f"{start.strftime('%b %d')} – {end.strftime('%b %d, %Y')}"
+    _loc_label   = " &nbsp;·&nbsp; " + " + ".join(locations_selected) if locations_selected else ""
 
     # ── Section title ─────────────────────────────────────
     st.markdown('<div class="section-title">Intelligence Score</div>', unsafe_allow_html=True)
@@ -1106,7 +1108,7 @@ def render_command_center():
     <div style="font-family:'Plus Jakarta Sans',sans-serif;font-size:.95rem;font-weight:800;margin-bottom:2px;">
       <span style="color:{sc_color};">{sc_label}</span>
     </div>
-    <div style="font-size:.74rem;color:#64748B;">{period_label} &nbsp;·&nbsp; {period_days}-day window &nbsp;·&nbsp; {len(base):,} records</div>
+    <div style="font-size:.74rem;color:#64748B;">{period_label} &nbsp;·&nbsp; {period_days}-day window{_loc_label} &nbsp;·&nbsp; {len(base):,} records</div>
   </div>
   {banner_stats}
 </div>
@@ -1930,14 +1932,15 @@ section.main{margin-left:0!important;}
 /* ── Dashboard pill — fixed top-left anchor link ─────── */
 #nexobi-dash-pill{
   position:fixed;top:14px;left:14px;z-index:10000;
-  background:transparent;border:1px solid rgba(255,255,255,.13);
-  border-radius:999px;padding:4px 13px;
-  color:rgba(255,255,255,.36);font-size:.68rem;font-weight:500;
-  cursor:pointer;font-family:inherit;letter-spacing:.02em;
-  text-decoration:none;display:inline-block;
-  transition:all .18s;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);
+  border-radius:999px;padding:5px 14px;
+  color:rgba(255,255,255,.55);font-size:.69rem;font-weight:600;
+  cursor:pointer;font-family:inherit;letter-spacing:.03em;
+  text-decoration:none;display:inline-flex;align-items:center;gap:5px;
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
+  transition:all .2s;
 }
-#nexobi-dash-pill:hover{background:rgba(255,255,255,.06);color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.22);}
+#nexobi-dash-pill:hover{background:rgba(0,192,107,.12);color:#00C06B;border-color:rgba(0,192,107,.35);}
 /* ── Textarea — white bg, DARK text, visible cursor ─────── */
 html body textarea,
 [data-testid="stTextArea"] textarea,
@@ -2023,7 +2026,7 @@ html body [data-testid="stBaseButton-primary"]:hover,
 
     # ── Dashboard pill — simple anchor, query-param nav ───────
     st.markdown('<div class="ai-top-line"></div>', unsafe_allow_html=True)
-    st.markdown('<a id="nexobi-dash-pill" href="?_nav=dash" target="_self">← Dashboard</a>', unsafe_allow_html=True)
+    st.markdown('<a id="nexobi-dash-pill" href="?_nav=dash" target="_self"><span style="color:#00C06B;font-size:.6rem;">◆</span> ← Dashboard</a>', unsafe_allow_html=True)
 
     # Note: AI Agent uses DATA (full dataset) — sidebar filters have no effect
     render_ai()
