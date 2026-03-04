@@ -655,8 +655,12 @@ with st.sidebar:
     _has_locations = "location" in DATA.columns and DATA["location"].nunique() > 1
     _loc_opts = (
         ["All Locations"] + sorted(DATA["location"].dropna().astype(str).unique().tolist())
-        if _has_locations else ["All Locations"]
+        if _has_locations
+        else ["All Locations", "Main · Demo", "North · Demo", "South · Demo"]
     )
+    _loc_default = st.session_state.get("f_location", ["All Locations"])
+    _loc_default = [v for v in _loc_default if v in _loc_opts] or ["All Locations"]
+
     st.markdown(
         '<div style="font-size:.6rem;font-weight:700;color:#CBD5E1;letter-spacing:.1em;'
         'text-transform:uppercase;margin-bottom:4px;">Location</div>',
@@ -664,11 +668,9 @@ with st.sidebar:
     )
     locations_selected = st.multiselect(
         "", options=_loc_opts,
-        default=["All Locations"],
+        default=_loc_default,
         key="f_location",
-        label_visibility="collapsed",
-        disabled=not _has_locations,
-        placeholder="All Locations"
+        label_visibility="collapsed"
     )
     if not locations_selected or "All Locations" in locations_selected:
         locations_selected = []
