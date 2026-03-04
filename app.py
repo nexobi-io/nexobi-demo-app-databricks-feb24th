@@ -653,24 +653,26 @@ with st.sidebar:
 
     # --- Location selector (multi-location support) ---
     _has_locations = "location" in DATA.columns and DATA["location"].nunique() > 1
-    if _has_locations:
-        _loc_opts = ["All Locations"] + sorted(DATA["location"].dropna().astype(str).unique().tolist())
-        st.markdown(
-            '<div style="font-size:.6rem;font-weight:700;color:#CBD5E1;letter-spacing:.1em;'
-            'text-transform:uppercase;margin-bottom:4px;">Location</div>',
-            unsafe_allow_html=True
-        )
-        locations_selected = st.multiselect(
-            "", options=_loc_opts,
-            default=st.session_state["f_location"],
-            key="f_location",
-            label_visibility="collapsed"
-        )
-        if not locations_selected or "All Locations" in locations_selected:
-            locations_selected = []
-        st.markdown('<div style="height:1px;background:rgba(255,255,255,.07);margin:8px 0 10px;"></div>', unsafe_allow_html=True)
-    else:
+    _loc_opts = (
+        ["All Locations"] + sorted(DATA["location"].dropna().astype(str).unique().tolist())
+        if _has_locations else ["All Locations"]
+    )
+    st.markdown(
+        '<div style="font-size:.6rem;font-weight:700;color:#CBD5E1;letter-spacing:.1em;'
+        'text-transform:uppercase;margin-bottom:4px;">Location</div>',
+        unsafe_allow_html=True
+    )
+    locations_selected = st.multiselect(
+        "", options=_loc_opts,
+        default=["All Locations"],
+        key="f_location",
+        label_visibility="collapsed",
+        disabled=not _has_locations,
+        placeholder="All Locations"
+    )
+    if not locations_selected or "All Locations" in locations_selected:
         locations_selected = []
+    st.markdown('<div style="height:1px;background:rgba(255,255,255,.07);margin:8px 0 10px;"></div>', unsafe_allow_html=True)
 
     d1, d2 = st.columns(2)
     with d1:
