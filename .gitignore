@@ -1,0 +1,10 @@
+# Old versions — don't publish
+app 15.py
+app last*.py
+app_last*.py
+data.csv
+.claude/
+__pycache__/
+*.pyc
+.env
+.DS_Store
