@@ -137,7 +137,7 @@ def _call_genie(question: str) -> dict:
     if not GENIE_SPACE_ID:
         return {"text": "", "sql": "", "df": None, "error": "no_genie_space"}
 
-    token    = _secret("DATABRICKS_TOKEN")
+    token    = _secret("NEXOBI_PAT") or _secret("DATABRICKS_TOKEN")
     base_url = f"https://{DATABRICKS_HOST}/api/2.0/genie/spaces/{GENIE_SPACE_ID}"
     headers  = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
