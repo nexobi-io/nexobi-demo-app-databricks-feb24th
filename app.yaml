@@ -4,7 +4,3 @@ command:
   - streamlit
   - run
   - app.py
-
-env:
-  - name: NEXOBI_PAT
-    value: "dapi7df0b65fc89646c81df3901c9c089d8"
