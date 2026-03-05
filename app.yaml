@@ -1,6 +1,5 @@
 # ============================================================
 # Databricks Apps — NexoBI Attribution Intelligence
-# Deploy: Databricks workspace > Compute > Apps > Create App
 # ============================================================
 
 command:
@@ -13,25 +12,3 @@ command:
   - --server.address=0.0.0.0
   - --server.headless=true
   - --browser.gatherUsageStats=false
-
-# Environment variables injected at runtime by Databricks Apps:
-#   DATABRICKS_HOST  — auto-provided (workspace URL)
-#   DATABRICKS_TOKEN — auto-provided (OAuth token for the app)
-#
-# Set the variables below in the Databricks Apps UI under
-# "Environment variables" when creating / editing the app.
-env:
-  - name: NEXOBI_CATALOG
-    value: "workspace"
-
-  - name: NEXOBI_SCHEMA
-    value: "gold"
-
-  - name: NEXOBI_TABLE
-    value: "acquisition"
-
-  - name: DATABRICKS_HTTP_PATH
-    value: "/sql/1.0/warehouses/b3342784cd85850e"
-
-  - name: NEXOBI_GENIE_SPACE_ID
-    value: "01f111cb463a1c1e8c2a03deb976f2a8"
