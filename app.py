@@ -137,36 +137,29 @@ def _call_genie(question: str) -> dict:
     if not GENIE_SPACE_ID:
         return {"text": "", "sql": "", "df": None, "error": "no_genie_space"}
 
-    token    = "dapi7df0b65fc89646c81df3901c9c089d8"  # TEMP: hardcoded to test
-    base_url = f"https://{DATABRICKS_HOST}/api/2.0/genie/spaces/{GENIE_SPACE_ID}"
-    headers  = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-
     try:
+        from databricks.sdk import WorkspaceClient
+        w = WorkspaceClient()
+        base = f"/api/2.0/genie/spaces/{GENIE_SPACE_ID}"
+
         conv_id = st.session_state.get("genie_conversation_id")
         if conv_id:
-            resp = requests.post(
-                f"{base_url}/conversations/{conv_id}/messages",
-                headers=headers, json={"content": question}, timeout=30
-            )
+            data = w.api_client.do("POST", f"{base}/conversations/{conv_id}/messages",
+                                   body={"content": question})
         else:
-            resp = requests.post(
-                f"{base_url}/start-conversation",
-                headers=headers, json={"content": question}, timeout=30
-            )
-        resp.raise_for_status()
-        data    = resp.json()
+            data = w.api_client.do("POST", f"{base}/start-conversation",
+                                   body={"content": question})
+
         conv_id = data.get("conversation_id", conv_id)
         msg_id  = data.get("message_id") or data.get("id")
         st.session_state["genie_conversation_id"] = conv_id
 
-        poll_url = f"{base_url}/conversations/{conv_id}/messages/{msg_id}"
+        poll = f"{base}/conversations/{conv_id}/messages/{msg_id}"
         status, payload, elapsed = "PENDING", {}, 0
         while status not in ("COMPLETED", "FAILED") and elapsed < 90:
             time.sleep(2)
             elapsed += 2
-            pr = requests.get(poll_url, headers=headers, timeout=30)
-            pr.raise_for_status()
-            payload = pr.json()
+            payload = w.api_client.do("GET", poll)
             status  = payload.get("status", "PENDING")
 
         if status == "FAILED":
@@ -187,13 +180,11 @@ def _call_genie(question: str) -> dict:
         df = None
         if answer_sql:
             try:
-                rr = requests.get(f"{poll_url}/query-result", headers=headers, timeout=30)
-                if rr.status_code == 200:
-                    rdata = rr.json()
-                    cols  = [c["name"] for c in rdata.get("manifest", {}).get("schema", {}).get("columns", [])]
-                    rows  = [r.get("values", []) for r in rdata.get("result", {}).get("data_typed_array", [])]
-                    if cols and rows:
-                        df = pd.DataFrame([[v.get("str", "") for v in row] for row in rows], columns=cols)
+                rdata = w.api_client.do("GET", f"{poll}/query-result")
+                cols  = [c["name"] for c in rdata.get("manifest", {}).get("schema", {}).get("columns", [])]
+                rows  = [r.get("values", []) for r in rdata.get("result", {}).get("data_typed_array", [])]
+                if cols and rows:
+                    df = pd.DataFrame([[v.get("str", "") for v in row] for row in rows], columns=cols)
             except Exception:
                 pass
 
