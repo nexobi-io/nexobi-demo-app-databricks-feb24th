@@ -1,20 +1,24 @@
-import streamlit as st
-import streamlit.components.v1 as components
-import pandas as pd
+import json
+import logging
 import os
-import requests
 import time
+import uuid
+from typing import Any, Dict, List, Optional
 
-# set_page_config MUST be the very first Streamlit command
+import pandas as pd
+import streamlit as st
+
+# set_page_config MUST be the first Streamlit command
 st.set_page_config(
-    page_title="NexoBI · Genie",
+    page_title="NexoBI Agent",
     layout="centered",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed",
 )
 
-# ==========================================================
-# CONFIG — os.environ first (Databricks Apps), fallback to st.secrets (Streamlit Cloud)
-# ==========================================================
+
+# ----------------------------------------------------------
+# Configuration
+# ----------------------------------------------------------
 def _secret(key: str, default: str = "") -> str:
     env_val = os.environ.get(key)
     if env_val:
@@ -24,399 +28,607 @@ def _secret(key: str, default: str = "") -> str:
     except Exception:
         return default
 
-_raw_host       = _secret("DATABRICKS_HOST", "dbc-51730115-505d.cloud.databricks.com")
-DATABRICKS_HOST = _raw_host.replace("https://", "").replace("http://", "").rstrip("/")
-GENIE_SPACE_ID  = _secret("NEXOBI_GENIE_SPACE_ID", "01f1180e851210c6bf3967bf360cecef")
 
-# ==========================================================
-# CSS
-# ==========================================================
-st.markdown("""
+def _bool_env(key: str, default: bool = False) -> bool:
+    raw = _secret(key, str(default)).strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+GENIE_SPACE_ID = _secret("NEXOBI_GENIE_SPACE_ID", "")
+LLM_ENDPOINT = _secret("NEXOBI_LLM_ENDPOINT", "databricks-meta-llama-3-1-70b-instruct")
+ENABLE_LLM = _bool_env("NEXOBI_ENABLE_LLM", True)
+PLAYBOOK_VS_ENDPOINT = _secret("NEXOBI_PLAYBOOK_VS_ENDPOINT", "")
+PLAYBOOK_INDEX_NAME = _secret("NEXOBI_PLAYBOOK_INDEX_NAME", "")
+PLAYBOOK_TEXT_COLUMN = _secret("NEXOBI_PLAYBOOK_TEXT_COLUMN", "content")
+PLAYBOOK_ID_COLUMN = _secret("NEXOBI_PLAYBOOK_ID_COLUMN", "id")
+PLAYBOOK_K = int(_secret("NEXOBI_PLAYBOOK_K", "4"))
+MAX_HISTORY = int(_secret("NEXOBI_MAX_HISTORY", "12"))
+MAX_TOOL_STEPS = int(_secret("NEXOBI_MAX_TOOL_STEPS", "5"))
+GENIE_TIMEOUT_SEC = int(_secret("NEXOBI_GENIE_TIMEOUT_SEC", "90"))
+GENIE_POLL_SEC = int(_secret("NEXOBI_GENIE_POLL_SEC", "2"))
+
+
+# ----------------------------------------------------------
+# Logging
+# ----------------------------------------------------------
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("nexobi_agent")
+
+
+def _log(event: str, request_id: str, **kwargs: Any) -> None:
+    payload = {"event": event, "request_id": request_id, **kwargs}
+    logger.info(json.dumps(payload, default=str))
+
+
+# ----------------------------------------------------------
+# UI style (safe: only static HTML/CSS)
+# ----------------------------------------------------------
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;900&family=DM+Sans:wght@400;500;600&display=swap');
 html,body,[class*="css"]{font-family:'DM Sans',sans-serif!important;}
 .stApp{background:#060D1A!important;}
 #MainMenu,footer,header{visibility:hidden;}
-.block-container{max-width:720px;padding:1rem 1.5rem 3rem;}
-
-/* Keyframes */
-@keyframes floatA{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(28px,-22px) scale(1.08)}}
-@keyframes floatB{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-22px,20px) scale(.94)}}
-@keyframes breathe{0%,100%{opacity:.9;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
-@keyframes drift1{0%{transform:translate(0,0)}25%{transform:translate(18px,-24px)}50%{transform:translate(-12px,-40px)}75%{transform:translate(22px,-14px)}100%{transform:translate(0,0)}}
-@keyframes drift2{0%{transform:translate(0,0)}33%{transform:translate(-20px,14px)}66%{transform:translate(12px,28px)}100%{transform:translate(0,0)}}
-@keyframes twinkle{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:.75;transform:scale(1.5)}}
-@keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
-@keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-@keyframes inputGlow{0%,100%{box-shadow:0 0 0 0 rgba(0,192,107,0)}50%{box-shadow:0 0 22px 4px rgba(0,192,107,.16)}}
-
-/* Aurora orbs */
-.page-orbs{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden;}
-.page-orbs .op1{position:absolute;width:560px;height:560px;background:rgba(0,192,107,.12);border-radius:50%;filter:blur(95px);top:-160px;right:-90px;animation:floatA 9s ease-in-out infinite,breathe 7s ease-in-out infinite;}
-.page-orbs .op2{position:absolute;width:440px;height:440px;background:rgba(0,153,82,.08);border-radius:50%;filter:blur(90px);bottom:-110px;left:-70px;animation:floatB 13s ease-in-out infinite,breathe 10s ease-in-out infinite reverse;}
-.page-orbs .op3{position:absolute;width:280px;height:280px;background:rgba(0,192,107,.05);border-radius:50%;filter:blur(75px);top:40%;right:-40px;animation:floatA 17s ease-in-out infinite reverse;}
-.page-orbs .pt{position:absolute;border-radius:50%;pointer-events:none;}
-.page-orbs .pt1{width:3px;height:3px;background:rgba(0,192,107,.7);top:18%;left:12%;animation:drift1 9s ease-in-out infinite,twinkle 3.2s ease-in-out infinite;}
-.page-orbs .pt2{width:2px;height:2px;background:rgba(0,192,107,.5);top:35%;left:72%;animation:drift2 11s ease-in-out infinite,twinkle 4.1s ease-in-out .8s infinite;}
-.page-orbs .pt3{width:4px;height:4px;background:rgba(0,212,120,.6);top:62%;left:28%;animation:drift1 8s ease-in-out infinite,twinkle 2.8s ease-in-out 1.5s infinite;}
-.page-orbs .pt4{width:2px;height:2px;background:rgba(0,192,107,.4);top:78%;left:58%;animation:drift2 14s ease-in-out infinite,twinkle 5s ease-in-out infinite;}
-
-/* Hero */
-.ai-hero-wrap{text-align:center;padding:3rem 1rem 2rem;}
-.ai-catch{font-family:'Plus Jakarta Sans',sans-serif;font-size:3rem;font-weight:900;color:#FFFFFF;line-height:1.08;margin-bottom:.6rem;}
-.ai-catch-hi{background:linear-gradient(120deg,#00C06B 0%,#38BDF8 40%,#00C06B 80%);background-size:250% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 4s linear infinite;}
-.ai-catch-sub{font-size:.85rem;color:rgba(255,255,255,.45);max-width:400px;margin:0 auto 2rem;}
-
-/* Chat bubbles */
-.ai-bubble-user{display:flex;justify-content:flex-end;margin:.8rem 0 .15rem;animation:slideUp .18s ease-out;}
-.ai-bubble-user span{background:linear-gradient(135deg,#1e293b 0%,#0f172a 100%);color:#F1F5F9;border-radius:18px 18px 4px 18px;padding:11px 16px;font-size:.87rem;font-weight:500;max-width:80%;display:inline-block;box-shadow:0 4px 18px rgba(0,0,0,.18);}
-.ai-msg-label{display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:700;color:#00C06B;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;margin-top:.9rem;}
-.ai-msg-label::before{content:'◆';font-size:.6rem;background:linear-gradient(135deg,#00C06B,#38BDF8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.ai-bubble-ai{background:rgba(255,255,255,.95)!important;border:none!important;border-left:3px solid #00C06B!important;border-radius:4px 18px 18px 18px!important;padding:14px 18px!important;margin:0 0 .3rem!important;font-size:.88rem!important;color:#1E293B!important;line-height:1.7!important;box-shadow:0 6px 28px rgba(0,0,0,.07)!important;animation:slideUp .2s ease-out;}
-.ai-bubble-ai *{color:#334155!important;}
-.ai-bubble-ai b,.ai-bubble-ai strong{color:#0F172A!important;}
-
-/* Input */
-html body textarea,[data-testid="stTextArea"] textarea{color:#000!important;-webkit-text-fill-color:#000!important;caret-color:#00C06B!important;background:#fff!important;border:1.5px solid rgba(0,192,107,.35)!important;border-radius:16px!important;padding:13px 16px!important;font-size:.9rem!important;line-height:1.5!important;resize:none!important;animation:inputGlow 3.5s ease-in-out infinite!important;}
-html body textarea::placeholder{color:#475569!important;-webkit-text-fill-color:#475569!important;}
-[data-testid="stTextArea"]>div,[data-testid="stTextArea"]>div>div{border:none!important;background:transparent!important;}
-
-/* Primary button */
-html body [data-testid="stBaseButton-primary"]{border-radius:50%!important;width:46px!important;min-width:46px!important;height:46px!important;padding:0!important;font-size:1.1rem!important;background:linear-gradient(135deg,#00C06B,#00875A)!important;color:#fff!important;border:none!important;box-shadow:0 4px 18px rgba(0,192,107,.35)!important;}
-html body [data-testid="stBaseButton-primary"]:hover{box-shadow:0 6px 26px rgba(0,192,107,.5)!important;transform:scale(1.07)!important;}
-
-/* Secondary / new chat button */
-.stButton>button{background:rgba(255,255,255,.07)!important;color:#CBD5E1!important;border:1px solid rgba(255,255,255,.12)!important;border-radius:12px!important;font-weight:600!important;}
-
-/* Recommendation bubble (amber) */
-.ai-label-rec{display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:700;color:#F59E0B;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;margin-top:.9rem;}
-.ai-label-rec::before{content:'◆';font-size:.6rem;color:#F59E0B;}
-.ai-bubble-rec{background:rgba(251,191,36,.07)!important;border-left:3px solid #F59E0B!important;border-radius:4px 18px 18px 18px!important;padding:14px 18px!important;margin:0 0 .3rem!important;font-size:.88rem!important;line-height:1.7!important;box-shadow:0 6px 28px rgba(0,0,0,.07)!important;animation:slideUp .2s ease-out;}
-.ai-bubble-rec,.ai-bubble-rec *{color:#FEF3C7!important;}
-.ai-bubble-rec b,.ai-bubble-rec strong{color:#FFFBEB!important;}
-
-/* Expander / DataFrame */
-[data-testid="stExpander"]{background:rgba(255,255,255,.05)!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:12px!important;}
-[data-testid="stExpander"] summary{color:#CBD5E1!important;}
-[data-testid="stDataFrame"]{background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.1)!important;border-radius:12px!important;}
-[data-testid="stDataFrame"] *{color:#CBD5E1!important;}
-.stMarkdownContainer p{color:rgba(255,255,255,.3)!important;}
+.block-container{max-width:820px;padding:1rem 1.5rem 3rem;}
+.ai-title{font-family:'Plus Jakarta Sans',sans-serif;font-size:2.6rem;font-weight:900;color:#fff;line-height:1.05;margin:1.8rem 0 .4rem;}
+.ai-sub{color:rgba(255,255,255,.62);margin-bottom:1.2rem;}
+[data-testid="stTextArea"] textarea{background:#fff!important;color:#000!important;border-radius:14px!important;}
+.stButton>button{border-radius:12px!important;}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-# Aurora background
-st.markdown("""
-<div class="page-orbs">
-  <div class="op1"></div><div class="op2"></div><div class="op3"></div>
-  <div class="pt pt1"></div><div class="pt pt2"></div>
-  <div class="pt pt3"></div><div class="pt pt4"></div>
-</div>
-""", unsafe_allow_html=True)
 
-# ==========================================================
-# GENIE CLIENT
-# ==========================================================
-def _call_genie(question: str) -> dict:
+# ----------------------------------------------------------
+# Databricks wrappers
+# ----------------------------------------------------------
+@st.cache_resource(show_spinner=False)
+def _workspace_client():
+    from databricks.sdk import WorkspaceClient
+
+    return WorkspaceClient()
+
+
+def _dbx_do(method: str, path: str, request_id: str, body: Optional[dict] = None, retries: int = 4) -> dict:
+    w = _workspace_client()
+    backoff = 1.0
+    last_exc: Optional[Exception] = None
+    for attempt in range(1, retries + 1):
+        try:
+            started = time.time()
+            response = w.api_client.do(method, path, body=body)
+            _log("dbx_call_ok", request_id, method=method, path=path, attempt=attempt, ms=int((time.time() - started) * 1000))
+            return response
+        except Exception as exc:
+            last_exc = exc
+            retriable = any(token in str(exc).lower() for token in ["429", "timeout", "tempor", "503", "502", "504"])
+            _log(
+                "dbx_call_err",
+                request_id,
+                method=method,
+                path=path,
+                attempt=attempt,
+                retriable=retriable,
+                error=str(exc),
+            )
+            if attempt == retries or not retriable:
+                break
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 8)
+    raise RuntimeError(f"Databricks API call failed: {method} {path} :: {last_exc}")
+
+
+def _typed_cell(v: dict) -> Any:
+    if "null" in v:
+        return None
+    if "long" in v:
+        return int(v["long"])
+    if "int" in v:
+        return int(v["int"])
+    if "double" in v:
+        return float(v["double"])
+    if "float" in v:
+        return float(v["float"])
+    if "bool" in v:
+        return bool(v["bool"])
+    if "str" in v:
+        return str(v["str"])
+    return next((x for x in v.values() if x is not None), None)
+
+
+def _fetch_query_df(poll_path: str, request_id: str, row_limit: int = 200) -> pd.DataFrame:
+    rdata = _dbx_do("GET", f"{poll_path}/query-result", request_id=request_id)
+    cols = [c["name"] for c in rdata.get("manifest", {}).get("schema", {}).get("columns", [])]
+    raw_rows = rdata.get("result", {}).get("data_typed_array", [])
+    rows = [[_typed_cell(v) for v in r.get("values", [])] for r in raw_rows[:row_limit]]
+    if not cols:
+        return pd.DataFrame()
+    return pd.DataFrame(rows, columns=cols)
+
+
+def _tool_ask_genie(question: str, request_id: str) -> Dict[str, Any]:
     if not GENIE_SPACE_ID:
-        return {"text": "", "sql": "", "df": None, "error": "no_genie_space"}
+        return {"ok": False, "error": "Genie is not configured. Set NEXOBI_GENIE_SPACE_ID."}
 
+    base = f"/api/2.0/genie/spaces/{GENIE_SPACE_ID}"
+    conv_id = st.session_state.get("genie_conversation_id")
+
+    if conv_id:
+        data = _dbx_do(
+            "POST",
+            f"{base}/conversations/{conv_id}/messages",
+            request_id=request_id,
+            body={"content": question},
+        )
+    else:
+        data = _dbx_do(
+            "POST",
+            f"{base}/start-conversation",
+            request_id=request_id,
+            body={"content": question},
+        )
+
+    conv_id = data.get("conversation_id", conv_id)
+    msg_id = data.get("message_id") or data.get("id")
+    st.session_state["genie_conversation_id"] = conv_id
+
+    poll_path = f"{base}/conversations/{conv_id}/messages/{msg_id}"
+    status = "PENDING"
+    payload: Dict[str, Any] = {}
+    elapsed = 0
+
+    while status not in ("COMPLETED", "FAILED") and elapsed < GENIE_TIMEOUT_SEC:
+        time.sleep(GENIE_POLL_SEC)
+        elapsed += GENIE_POLL_SEC
+        payload = _dbx_do("GET", poll_path, request_id=request_id)
+        status = payload.get("status", "PENDING")
+
+    if status != "COMPLETED":
+        return {"ok": False, "error": payload.get("error", "Genie timed out or failed.")}
+
+    answer_text = ""
+    answer_sql = ""
+    answer_desc = ""
+    for att in payload.get("attachments", []):
+        if "text" in att:
+            answer_text = att["text"].get("content", "")
+        if "query" in att:
+            answer_sql = att["query"].get("query", "")
+            answer_desc = att["query"].get("description", "")
+
+    if not answer_text and answer_desc:
+        answer_text = answer_desc
+
+    df = pd.DataFrame()
+    if answer_sql:
+        try:
+            df = _fetch_query_df(poll_path, request_id=request_id)
+        except Exception as exc:
+            _log("genie_result_parse_err", request_id, error=str(exc))
+
+    preview = df.head(20).to_dict(orient="records") if not df.empty else []
+    return {
+        "ok": True,
+        "conversation_id": conv_id,
+        "message_id": msg_id,
+        "text": answer_text,
+        "sql": answer_sql,
+        "columns": list(df.columns),
+        "preview": preview,
+        "row_count": int(len(df)),
+        "df": df,
+    }
+
+
+@st.cache_resource(show_spinner=False)
+def _vector_search_client():
+    from databricks.vector_search.client import VectorSearchClient
+
+    return VectorSearchClient()
+
+
+def _extract_vs_rows(raw: dict) -> List[dict]:
+    # Support common response layouts across SDK versions.
+    manifest_cols = raw.get("manifest", {}).get("columns", [])
+    col_names = [c.get("name") if isinstance(c, dict) else str(c) for c in manifest_cols]
+
+    data_array = raw.get("result", {}).get("data_array")
+    if data_array and col_names:
+        return [{col_names[i]: row[i] for i in range(min(len(col_names), len(row)))} for row in data_array]
+
+    docs = raw.get("result", {}).get("docs")
+    if isinstance(docs, list):
+        return docs
+
+    if isinstance(raw.get("results"), list):
+        return raw["results"]
+
+    if isinstance(raw.get("data"), list):
+        return raw["data"]
+
+    return []
+
+
+def _tool_retrieve_playbook(query: str, request_id: str, k: Optional[int] = None) -> Dict[str, Any]:
+    if not PLAYBOOK_VS_ENDPOINT or not PLAYBOOK_INDEX_NAME:
+        return {
+            "ok": False,
+            "error": "Playbook retrieval is not configured. Set NEXOBI_PLAYBOOK_VS_ENDPOINT and NEXOBI_PLAYBOOK_INDEX_NAME.",
+        }
+
+    top_k = max(1, min(int(k or PLAYBOOK_K), 10))
     try:
-        from databricks.sdk import WorkspaceClient
-        w = WorkspaceClient()
-        base = f"/api/2.0/genie/spaces/{GENIE_SPACE_ID}"
+        client = _vector_search_client()
+        index = client.get_index(endpoint_name=PLAYBOOK_VS_ENDPOINT, index_name=PLAYBOOK_INDEX_NAME)
+        raw = index.similarity_search(
+            query_text=query,
+            columns=[PLAYBOOK_ID_COLUMN, PLAYBOOK_TEXT_COLUMN],
+            num_results=top_k,
+        )
+        rows = _extract_vs_rows(raw if isinstance(raw, dict) else {})
+        snippets: List[dict] = []
+        for row in rows:
+            doc_id = row.get(PLAYBOOK_ID_COLUMN) or row.get("id") or "unknown"
+            text = str(row.get(PLAYBOOK_TEXT_COLUMN) or row.get("text") or row.get("content") or "").strip()
+            if not text:
+                continue
+            snippets.append({"id": str(doc_id), "text": text[:1200]})
 
-        conv_id = st.session_state.get("genie_conversation_id")
-        if conv_id:
-            data = w.api_client.do("POST", f"{base}/conversations/{conv_id}/messages",
-                                   body={"content": question})
-        else:
-            data = w.api_client.do("POST", f"{base}/start-conversation",
-                                   body={"content": question})
+        if not snippets:
+            return {"ok": True, "count": 0, "snippets": [], "summary": "No relevant playbook context found."}
 
-        conv_id = data.get("conversation_id", conv_id)
-        msg_id  = data.get("message_id") or data.get("id")
-        st.session_state["genie_conversation_id"] = conv_id
-
-        poll = f"{base}/conversations/{conv_id}/messages/{msg_id}"
-        status, payload, elapsed = "PENDING", {}, 0
-        while status not in ("COMPLETED", "FAILED") and elapsed < 90:
-            time.sleep(2)
-            elapsed += 2
-            payload = w.api_client.do("GET", poll)
-            status  = payload.get("status", "PENDING")
-
-        if status == "FAILED":
-            return {"text": "", "sql": "", "df": None,
-                    "error": payload.get("error", "Genie query failed.")}
-
-        answer_text, answer_sql, answer_desc = "", "", ""
-        for att in payload.get("attachments", []):
-            if "text" in att:
-                answer_text = att["text"].get("content", "")
-            if "query" in att:
-                answer_sql  = att["query"].get("query", "")
-                answer_desc = att["query"].get("description", "")
-
-        if not answer_text and answer_desc:
-            answer_text = answer_desc
-
-        df = None
-        if answer_sql:
-            try:
-                rdata = w.api_client.do("GET", f"{poll}/query-result")
-                cols  = [c["name"] for c in rdata.get("manifest", {}).get("schema", {}).get("columns", [])]
-                rows  = [r.get("values", []) for r in rdata.get("result", {}).get("data_typed_array", [])]
-                if cols and rows:
-                    def _cell(v):
-                        for k in ("str", "long", "double", "bool", "int", "float"):
-                            if k in v:
-                                return str(v[k])
-                        return next((str(x) for x in v.values() if x is not None), "")
-                    df = pd.DataFrame([[_cell(v) for v in row] for row in rows], columns=cols)
-            except Exception:
-                pass
-
-        return {"text": answer_text, "sql": answer_sql, "df": df, "error": None}
-
+        summary = " | ".join([f"{s['id']}: {s['text'][:200]}" for s in snippets[:3]])
+        _log("playbook_retrieve_ok", request_id, count=len(snippets), index=PLAYBOOK_INDEX_NAME)
+        return {"ok": True, "count": len(snippets), "snippets": snippets, "summary": summary}
     except Exception as exc:
-        return {"text": "", "sql": "", "df": None, "error": str(exc)}
+        _log("playbook_retrieve_err", request_id, error=str(exc), index=PLAYBOOK_INDEX_NAME)
+        return {"ok": False, "error": f"Playbook retrieval failed: {exc}"}
 
 
-def _auto_chart(df: pd.DataFrame) -> bool:
-    """Detect data shape and render the best chart. Returns True if a chart was rendered."""
+def _llm_invoke(messages: List[dict], request_id: str, tools: Optional[List[dict]] = None) -> dict:
+    if not ENABLE_LLM or not LLM_ENDPOINT:
+        raise RuntimeError("LLM disabled or missing endpoint")
+
+    body: Dict[str, Any] = {
+        "messages": messages,
+        "temperature": 0.2,
+        "max_tokens": 500,
+    }
+    if tools:
+        body["tools"] = tools
+        body["tool_choice"] = "auto"
+
+    return _dbx_do(
+        "POST",
+        f"/serving-endpoints/{LLM_ENDPOINT}/invocations",
+        request_id=request_id,
+        body=body,
+    )
+
+
+def _extract_assistant_message(resp: dict) -> dict:
+    choice = (resp.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+    return {
+        "content": msg.get("content", ""),
+        "tool_calls": msg.get("tool_calls") or [],
+        "role": msg.get("role", "assistant"),
+    }
+
+
+def _agent_answer(question: str, request_id: str) -> Dict[str, Any]:
+    tools: List[dict] = [
+        {
+            "type": "function",
+            "function": {
+                "name": "ask_genie",
+                "description": "Query Databricks Genie for business metrics and SQL-backed answers.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "question": {
+                            "type": "string",
+                            "description": "The exact analytics question to send to Genie.",
+                        }
+                    },
+                    "required": ["question"],
+                },
+            },
+        }
+    ]
+    if PLAYBOOK_VS_ENDPOINT and PLAYBOOK_INDEX_NAME:
+        tools.append(
+            {
+                "type": "function",
+                "function": {
+                    "name": "retrieve_playbook",
+                    "description": "Retrieve SOP/playbook snippets relevant to the current question.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "What guidance to retrieve from the playbook index.",
+                            },
+                            "k": {
+                                "type": "integer",
+                                "description": "Number of snippets to retrieve (1-10).",
+                            },
+                        },
+                        "required": ["query"],
+                    },
+                },
+            }
+        )
+
+    messages: List[dict] = [
+        {
+            "role": "system",
+            "content": (
+                "You are NexoBI Agent for healthcare practices. Use ask_genie when a question needs factual data. "
+                "Use retrieve_playbook for SOP/best-practice guidance when relevant. "
+                "When tool data returns, provide a concise answer with: direct answer, key insight, and one action. "
+                "If data is unavailable, explain clearly and ask one focused follow-up."
+            ),
+        },
+    ]
+
+    summary = st.session_state.get("memory_summary", "")
+    if summary:
+        messages.append({"role": "system", "content": f"Session summary: {summary}"})
+
+    messages.extend(st.session_state.get("llm_messages", []))
+    messages.append({"role": "user", "content": question})
+
+    latest_df = pd.DataFrame()
+    latest_sql = ""
+    latest_tool_text = ""
+    latest_playbook: List[dict] = []
+
+    for step in range(MAX_TOOL_STEPS):
+        resp = _llm_invoke(messages=messages, tools=tools, request_id=request_id)
+        assistant = _extract_assistant_message(resp)
+        content = assistant.get("content", "")
+        tool_calls = assistant.get("tool_calls", [])
+
+        messages.append({
+            "role": "assistant",
+            "content": content,
+            "tool_calls": tool_calls if tool_calls else None,
+        })
+
+        if not tool_calls:
+            if not content.strip() and latest_tool_text:
+                content = latest_tool_text
+            return {
+                "ok": True,
+                "answer": content.strip(),
+                "sql": latest_sql,
+                "df": latest_df,
+                "playbook_snippets": latest_playbook,
+                "used_tools": step > 0,
+                "messages": messages,
+            }
+
+        for tc in tool_calls:
+            call_id = tc.get("id", str(uuid.uuid4()))
+            fn = (tc.get("function") or {}).get("name")
+            args_raw = (tc.get("function") or {}).get("arguments", "{}")
+            try:
+                args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+            except Exception:
+                args = {}
+
+            if fn == "ask_genie":
+                tool_q = args.get("question") or question
+                tool_payload = _tool_ask_genie(tool_q, request_id=request_id)
+                if tool_payload.get("ok"):
+                    latest_df = tool_payload.get("df", pd.DataFrame())
+                    latest_sql = tool_payload.get("sql", "")
+                    latest_tool_text = tool_payload.get("text", "")
+            elif fn == "retrieve_playbook":
+                playbook_q = args.get("query") or question
+                playbook_k = args.get("k")
+                tool_payload = _tool_retrieve_playbook(playbook_q, request_id=request_id, k=playbook_k)
+                if tool_payload.get("ok"):
+                    latest_playbook = tool_payload.get("snippets", [])
+            else:
+                tool_payload = {"ok": False, "error": f"Unknown tool: {fn}"}
+
+            tool_payload_for_llm = dict(tool_payload)
+            if "df" in tool_payload_for_llm:
+                del tool_payload_for_llm["df"]
+
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": call_id,
+                    "name": fn,
+                    "content": json.dumps(tool_payload_for_llm, default=str),
+                }
+            )
+
+    return {
+        "ok": False,
+        "error": "Agent reached tool step limit before final answer.",
+        "sql": latest_sql,
+        "df": latest_df,
+        "playbook_snippets": latest_playbook,
+    }
+
+
+def _chart_if_possible(df: pd.DataFrame) -> bool:
     if df is None or df.empty or len(df) < 2:
         return False
 
-    def _to_num(series):
-        return pd.to_numeric(
-            series.astype(str).str.replace(r"[\$,%\s]", "", regex=True).str.replace(",", ""),
-            errors="coerce"
-        )
+    date_cols = [c for c in df.columns if pd.api.types.is_datetime64_any_dtype(df[c])]
+    numeric_cols = [c for c in df.columns if pd.api.types.is_numeric_dtype(df[c])]
 
-    cols = list(df.columns)
+    for c in df.columns:
+        if c in date_cols or c in numeric_cols:
+            continue
+        converted = pd.to_datetime(df[c], errors="coerce")
+        if converted.notna().mean() > 0.7:
+            df = df.copy()
+            df[c] = converted
+            date_cols.append(c)
 
-    # Classify each column as numeric or text
-    numeric_cols, text_cols = [], []
-    for col in cols:
-        converted = _to_num(df[col])
-        (numeric_cols if converted.notna().mean() > 0.6 else text_cols).append(col)
-
-    if not numeric_cols:
-        return False
-
-    date_kw   = ["date", "month", "week", "day", "period", "year", "quarter", "time"]
-    date_cols = [c for c in text_cols if any(k in c.lower() for k in date_kw)]
-    cat_cols  = [c for c in text_cols if c not in date_cols]
-
-    # Build a clean numeric dataframe
-    num_df = pd.DataFrame({col: _to_num(df[col]) for col in numeric_cols})
-
-    # Time series → line chart
-    if date_cols:
+    if date_cols and numeric_cols:
         idx = date_cols[0]
-        chart_df = num_df[numeric_cols[:3]].copy()
-        chart_df.index = df[idx].astype(str)
-        chart_df.index.name = idx
-        st.line_chart(chart_df)
-        return True
+        chart_df = df[[idx] + numeric_cols[:3]].dropna().set_index(idx)
+        if not chart_df.empty:
+            st.line_chart(chart_df)
+            return True
 
-    # Category + numeric → bar chart
-    if cat_cols:
-        idx     = cat_cols[0]
-        num_col = numeric_cols[0]
-        chart_df = num_df[[num_col]].copy()
-        chart_df.index = df[idx].astype(str)
-        chart_df.index.name = idx
-        chart_df = chart_df.dropna().sort_values(num_col, ascending=False).head(15)
-        st.bar_chart(chart_df)
-        return True
-
-    # Pure numeric (no labels) → line chart on index
-    if len(numeric_cols) >= 1:
-        st.line_chart(num_df[numeric_cols[:3]])
+    if numeric_cols:
+        first_num = numeric_cols[0]
+        cat_cols = [c for c in df.columns if c not in numeric_cols]
+        if cat_cols:
+            idx = cat_cols[0]
+            chart_df = df[[idx, first_num]].dropna().set_index(idx).sort_values(first_num, ascending=False).head(20)
+            if not chart_df.empty:
+                st.bar_chart(chart_df)
+                return True
+        st.line_chart(df[numeric_cols[:3]].dropna())
         return True
 
     return False
 
 
-# ==========================================================
-# LLM LAYER (Databricks Model Serving) — enriches every response
-# ==========================================================
-LLM_ENDPOINT = _secret("NEXOBI_LLM_ENDPOINT", "databricks-meta-llama-3-1-70b-instruct")
+def _update_memory_summary() -> None:
+    # Keep a compact summary to reduce prompt growth.
+    history = st.session_state.get("chat_history", [])[-6:]
+    if not history:
+        st.session_state["memory_summary"] = ""
+        return
 
-def _enrich_with_llm(question: str, genie_text: str, df) -> tuple:
-    """
-    Call LLaMA with the question + Genie data.
-    Returns (enriched_text, is_llm).
-    Falls back to (genie_text, False) if endpoint unavailable.
-    """
-    if not LLM_ENDPOINT:
-        return genie_text, False
-    try:
-        from databricks.sdk import WorkspaceClient
-        w = WorkspaceClient()
+    chunks = []
+    for item in history:
+        q = item.get("q", "")[:120]
+        a = item.get("answer", "")[:180]
+        chunks.append(f"Q:{q} | A:{a}")
+    st.session_state["memory_summary"] = " || ".join(chunks)[:1200]
 
-        parts = [f"Question: {question}"]
-        if genie_text:
-            parts.append(f"Data summary: {genie_text}")
-        if df is not None and not df.empty:
-            parts.append(f"Data:\n{df.head(15).to_string(index=False)}")
 
-        resp = w.api_client.do(
-            "POST",
-            f"/serving-endpoints/{LLM_ENDPOINT}/invocations",
-            body={
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are an AI advisor for dental and medical practices. "
-                            "Given a question and data, respond with three parts in plain prose — no headers: "
-                            "first a direct answer to the question, "
-                            "then the key insight from the numbers, "
-                            "then one specific actionable recommendation the practice owner can act on this week. "
-                            "Be concise. Maximum 130 words total."
-                        )
-                    },
-                    {
-                        "role": "user",
-                        "content": "\n\n".join(parts)
-                    }
-                ],
-                "max_tokens": 300,
-                "temperature": 0.3,
+# ----------------------------------------------------------
+# Session state
+# ----------------------------------------------------------
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+if "genie_conversation_id" not in st.session_state:
+    st.session_state.genie_conversation_id = None
+if "llm_messages" not in st.session_state:
+    st.session_state.llm_messages = []
+if "memory_summary" not in st.session_state:
+    st.session_state.memory_summary = ""
+
+
+# ----------------------------------------------------------
+# UI
+# ----------------------------------------------------------
+st.markdown('<div class="ai-title">NexoBI Agent</div>', unsafe_allow_html=True)
+st.markdown('<div class="ai-sub">Genie-backed agent chat with tool calling, memory, and action-oriented answers.</div>', unsafe_allow_html=True)
+
+col1, col2 = st.columns([8, 1])
+with col1:
+    user_q = st.text_area("", placeholder="Ask a business question...", label_visibility="collapsed", height=88)
+with col2:
+    st.markdown('<div style="height:1.3rem"></div>', unsafe_allow_html=True)
+    ask = st.button("Ask", use_container_width=True, type="primary")
+
+if ask:
+    query = user_q.strip()
+    if not query:
+        st.warning("Please enter a question.")
+    else:
+        request_id = str(uuid.uuid4())
+        _log("user_query", request_id, q_len=len(query))
+        with st.spinner("Thinking..."):
+            try:
+                result = _agent_answer(query, request_id=request_id)
+            except Exception as exc:
+                _log("agent_error", request_id, error=str(exc))
+                result = {"ok": False, "error": f"Request failed. Request ID: {request_id}"}
+
+        if result.get("ok"):
+            item = {
+                "q": query,
+                "answer": result.get("answer", ""),
+                "sql": result.get("sql", ""),
+                "df": result.get("df", pd.DataFrame()),
+                "playbook_snippets": result.get("playbook_snippets", []),
+                "request_id": request_id,
+                "error": None,
             }
-        )
-        return resp["choices"][0]["message"]["content"], True
-    except Exception:
-        return genie_text, False
 
-
-# ==========================================================
-# MAIN
-# ==========================================================
-if "ai_history"            not in st.session_state: st.session_state.ai_history = []
-if "ai_nonce"              not in st.session_state: st.session_state.ai_nonce = 0
-if "genie_conversation_id" not in st.session_state: st.session_state.genie_conversation_id = None
-
-has_history = len(st.session_state.ai_history) > 0
-
-if not has_history:
-    st.markdown("""
-<div class="ai-hero-wrap">
-  <div class="ai-catch">Ask anything about<br><span class="ai-catch-hi">your practice.</span></div>
-  <div class="ai-catch-sub">Get straight answers from your data. No dashboards needed.</div>
-</div>
-""", unsafe_allow_html=True)
-
-# Input row
-_icol, _scol = st.columns([11, 1])
-with _icol:
-    user_q = st.text_area(
-        "", placeholder="Ask anything about your data…",
-        label_visibility="collapsed",
-        key=f"ai_input_{st.session_state.ai_nonce}",
-        height=80
-    )
-with _scol:
-    st.markdown('<div style="height:1.55rem"></div>', unsafe_allow_html=True)
-    ask = st.button("↑", use_container_width=True, key="ai_ask", type="primary")
-
-# Typewriter + Enter-to-send
-components.html("""<script>
-(function(){
-  var Q=["What was my production last month?","Which treatments have the highest show rate?","How many new patients this week?","Compare Google vs Facebook"],
-      qi=0,ci=0,del=false;
-  function ta(){return window.parent.document.querySelector('[data-testid="stTextArea"] textarea');}
-  function tick(){
-    var t=ta();if(!t||t.value.length>0){setTimeout(tick,400);return;}
-    var q=Q[qi];
-    if(del){ci=Math.max(0,ci-1);t.setAttribute("placeholder",q.slice(0,ci));if(ci===0){del=false;qi=(qi+1)%Q.length;setTimeout(tick,480);}else setTimeout(tick,28);}
-    else{ci=Math.min(q.length,ci+1);t.setAttribute("placeholder",q.slice(0,ci));if(ci===q.length){del=true;setTimeout(tick,2200);}else setTimeout(tick,65);}
-  }
-  setTimeout(tick,900);
-})();
-(function(){
-  var _b=null;
-  function bind(){
-    var t=window.parent.document.querySelector('[data-testid="stTextArea"] textarea');
-    if(!t){setTimeout(bind,300);return;}if(t===_b){setTimeout(bind,600);return;}_b=t;
-    t.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();var btn=window.parent.document.querySelector('[data-testid="stBaseButton-primary"]');if(btn)btn.click();}});
-    setTimeout(bind,600);
-  }
-  setTimeout(bind,600);
-})();
-</script>""", height=0)
-
-# Submit
-run_q = user_q.strip() if ask and user_q.strip() else None
-if run_q:
-    with st.spinner("Thinking…"):
-        result = _call_genie(run_q)
-        if not result.get("error"):
-            enriched, is_llm = _enrich_with_llm(run_q, result.get("text", ""), result.get("df"))
-            result["text"]   = enriched
-            result["is_llm"] = is_llm
-    st.session_state.ai_history.insert(0, {"q": run_q, **result})
-    if len(st.session_state.ai_history) > 10:
-        st.session_state.ai_history = st.session_state.ai_history[:10]
-    st.rerun()
-
-# Chat history
-for _hidx, item in enumerate(st.session_state.ai_history):
-    q     = item.get("q", "")
-    text  = item.get("text", "")
-    sql   = item.get("sql", "")
-    df    = item.get("df")
-    error = item.get("error")
-
-    st.markdown(f'<div class="ai-bubble-user"><span>{q}</span></div>', unsafe_allow_html=True)
-
-    if error == "no_genie_space":
-        st.markdown(
-            '<div class="ai-msg-label">NexoBI AI</div>'
-            '<div class="ai-bubble-ai" style="border-left:3px solid #F59E0B!important;">'
-            '<b style="color:#92400E!important;">Genie not configured</b> — '
-            'Set <code>NEXOBI_GENIE_SPACE_ID</code> in your Databricks Apps environment variables.'
-            '</div>', unsafe_allow_html=True)
-        continue
-
-    if error:
-        st.markdown(
-            '<div class="ai-msg-label">NexoBI AI</div>'
-            f'<div class="ai-bubble-ai" style="border-left:3px solid #EF4444!important;">'
-            f'<b style="color:#991B1B!important;">Error</b> — {error}</div>',
-            unsafe_allow_html=True)
-        continue
-
-    if text:
-        if item.get("is_llm"):
-            st.markdown(
-                '<div class="ai-label-rec">NexoBI AI · Insights</div>'
-                f'<div class="ai-bubble-rec">{text}</div>',
-                unsafe_allow_html=True)
+            new_llm_msgs = [
+                {"role": "user", "content": query},
+                {"role": "assistant", "content": item["answer"]},
+            ]
+            st.session_state.llm_messages.extend(new_llm_msgs)
+            st.session_state.llm_messages = st.session_state.llm_messages[-20:]
         else:
-            st.markdown(
-                '<div class="ai-msg-label">NexoBI AI</div>'
-                f'<div class="ai-bubble-ai">{text}</div>',
-                unsafe_allow_html=True)
+            item = {
+                "q": query,
+                "answer": "",
+                "sql": result.get("sql", ""),
+                "df": result.get("df", pd.DataFrame()),
+                "playbook_snippets": result.get("playbook_snippets", []),
+                "request_id": request_id,
+                "error": result.get("error", "Unknown error"),
+            }
 
-    if df is not None and not df.empty:
-        _auto_chart(df)
-        with st.expander("📋 View data", expanded=False):
+        st.session_state.chat_history.insert(0, item)
+        st.session_state.chat_history = st.session_state.chat_history[:MAX_HISTORY]
+        _update_memory_summary()
+        st.rerun()
+
+
+for item in st.session_state.chat_history:
+    st.write(f"**You:** {item.get('q', '')}")
+
+    if item.get("error"):
+        st.error(item["error"])
+        st.caption(f"Request ID: {item.get('request_id', '')}")
+        continue
+
+    st.write(item.get("answer", ""))
+    st.caption(f"Request ID: {item.get('request_id', '')}")
+
+    df = item.get("df")
+    if isinstance(df, pd.DataFrame) and not df.empty:
+        _chart_if_possible(df)
+        with st.expander("View data", expanded=False):
             st.dataframe(df, use_container_width=True, hide_index=True)
 
+    sql = item.get("sql", "")
     if sql:
-        with st.expander("🔍 View SQL", expanded=False):
+        with st.expander("View SQL", expanded=False):
             st.code(sql, language="sql")
 
-# New chat
-if has_history:
-    st.markdown('<div style="height:.6rem"></div>', unsafe_allow_html=True)
-    _, _nc = st.columns([8, 2])
-    with _nc:
-        if st.button("↺  New chat", key="ai_reset", use_container_width=True):
-            st.session_state.ai_history            = []
-            st.session_state.ai_nonce             += 1
-            st.session_state.genie_conversation_id = None
-            st.rerun()
+    snippets = item.get("playbook_snippets", [])
+    if snippets:
+        with st.expander("Playbook context", expanded=False):
+            for s in snippets:
+                st.markdown(f"**{s.get('id', 'doc')}**")
+                st.write(s.get("text", ""))
+
+
+controls = st.columns([1, 1, 5])
+with controls[0]:
+    if st.button("New chat"):
+        st.session_state.chat_history = []
+        st.session_state.llm_messages = []
+        st.session_state.memory_summary = ""
+        st.session_state.genie_conversation_id = None
+        st.rerun()
+with controls[1]:
+    if st.button("Reset Genie"):
+        st.session_state.genie_conversation_id = None
+        st.rerun()
+
+st.caption(
+    "Runbook: configure Genie, LLM endpoint, optional Vector Search playbook index, and least-privilege Databricks auth."
+)
