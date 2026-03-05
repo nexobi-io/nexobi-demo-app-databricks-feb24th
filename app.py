@@ -96,6 +96,13 @@ html body [data-testid="stBaseButton-primary"]:hover{box-shadow:0 6px 26px rgba(
 /* Secondary / new chat button */
 .stButton>button{background:rgba(255,255,255,.07)!important;color:#CBD5E1!important;border:1px solid rgba(255,255,255,.12)!important;border-radius:12px!important;font-weight:600!important;}
 
+/* Recommendation bubble (amber) */
+.ai-label-rec{display:flex;align-items:center;gap:6px;font-size:.68rem;font-weight:700;color:#F59E0B;letter-spacing:.06em;text-transform:uppercase;margin-bottom:4px;margin-top:.9rem;}
+.ai-label-rec::before{content:'◆';font-size:.6rem;color:#F59E0B;}
+.ai-bubble-rec{background:rgba(251,191,36,.07)!important;border-left:3px solid #F59E0B!important;border-radius:4px 18px 18px 18px!important;padding:14px 18px!important;margin:0 0 .3rem!important;font-size:.88rem!important;line-height:1.7!important;box-shadow:0 6px 28px rgba(0,0,0,.07)!important;animation:slideUp .2s ease-out;}
+.ai-bubble-rec,.ai-bubble-rec *{color:#FEF3C7!important;}
+.ai-bubble-rec b,.ai-bubble-rec strong{color:#FFFBEB!important;}
+
 /* Expander / DataFrame */
 [data-testid="stExpander"]{background:rgba(255,255,255,.05)!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:12px!important;}
 [data-testid="stExpander"] summary{color:#CBD5E1!important;}
@@ -247,6 +254,50 @@ def _auto_chart(df: pd.DataFrame) -> bool:
     return False
 
 
+# ==========================================================
+# LLM RECOMMENDATIONS (Databricks Model Serving)
+# ==========================================================
+LLM_ENDPOINT = _secret("NEXOBI_LLM_ENDPOINT", "databricks-meta-llama-3-1-70b-instruct")
+
+def _call_recommendations(question: str, genie_text: str, df) -> str:
+    try:
+        from databricks.sdk import WorkspaceClient
+        w = WorkspaceClient()
+
+        parts = []
+        if question:
+            parts.append(f"User question: {question}")
+        if genie_text:
+            parts.append(f"Data summary: {genie_text}")
+        if df is not None and not df.empty:
+            parts.append(f"Data:\n{df.head(20).to_string(index=False)}")
+
+        context = "\n\n".join(parts)
+
+        resp = w.serving_endpoints.query(
+            name=LLM_ENDPOINT,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a strategic advisor for dental and medical practices. "
+                        "Analyze the practice data provided and give exactly 2-3 specific, "
+                        "actionable recommendations. Be direct and concise. Format each as a "
+                        "numbered action item the practice owner can act on this week or month. "
+                        "Focus on revenue, patient acquisition, and marketing ROI."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"{context}\n\nWhat are my top 2-3 actionable priorities based on this data?"
+                }
+            ],
+            max_tokens=450,
+            temperature=0.3,
+        )
+        return resp.choices[0].message.content
+    except Exception as exc:
+        return f"Could not generate recommendations: {exc}"
 
 
 # ==========================================================
@@ -344,10 +395,16 @@ for _hidx, item in enumerate(st.session_state.ai_history):
         continue
 
     if text:
-        st.markdown(
-            '<div class="ai-msg-label">NexoBI AI</div>'
-            f'<div class="ai-bubble-ai">{text}</div>',
-            unsafe_allow_html=True)
+        if item.get("rec"):
+            st.markdown(
+                '<div class="ai-label-rec">NexoBI Insights</div>'
+                f'<div class="ai-bubble-rec">{text}</div>',
+                unsafe_allow_html=True)
+        else:
+            st.markdown(
+                '<div class="ai-msg-label">NexoBI AI</div>'
+                f'<div class="ai-bubble-ai">{text}</div>',
+                unsafe_allow_html=True)
 
     if df is not None and not df.empty:
         _auto_chart(df)
@@ -361,10 +418,12 @@ for _hidx, item in enumerate(st.session_state.ai_history):
         _, _rec_col = st.columns([7, 3])
         with _rec_col:
             if st.button("💡 Get recommendations", key=f"rec_{_hidx}", use_container_width=True):
-                _rec_q = "Based on the data above, give me 2-3 specific, actionable recommendations I should focus on to improve my results."
-                with st.spinner("Thinking…"):
-                    _res = _call_genie(_rec_q)
-                st.session_state.ai_history.insert(0, {"q": _rec_q, **_res})
+                with st.spinner("Analyzing…"):
+                    _rec_text = _call_recommendations(q, text, df)
+                st.session_state.ai_history.insert(0, {
+                    "q": "💡 Recommendations based on the data above",
+                    "text": _rec_text, "sql": "", "df": None, "error": None, "rec": True
+                })
                 st.rerun()
 
 # New chat
