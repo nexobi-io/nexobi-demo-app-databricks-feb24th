@@ -274,28 +274,31 @@ def _call_recommendations(question: str, genie_text: str, df) -> str:
 
         context = "\n\n".join(parts)
 
-        resp = w.serving_endpoints.query(
-            name=LLM_ENDPOINT,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a strategic advisor for dental and medical practices. "
-                        "Analyze the practice data provided and give exactly 2-3 specific, "
-                        "actionable recommendations. Be direct and concise. Format each as a "
-                        "numbered action item the practice owner can act on this week or month. "
-                        "Focus on revenue, patient acquisition, and marketing ROI."
-                    )
-                },
-                {
-                    "role": "user",
-                    "content": f"{context}\n\nWhat are my top 2-3 actionable priorities based on this data?"
-                }
-            ],
-            max_tokens=450,
-            temperature=0.3,
+        resp = w.api_client.do(
+            "POST",
+            f"/serving-endpoints/{LLM_ENDPOINT}/invocations",
+            body={
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a strategic advisor for dental and medical practices. "
+                            "Analyze the practice data provided and give exactly 2-3 specific, "
+                            "actionable recommendations. Be direct and concise. Format each as a "
+                            "numbered action item the practice owner can act on this week or month. "
+                            "Focus on revenue, patient acquisition, and marketing ROI."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": f"{context}\n\nWhat are my top 2-3 actionable priorities based on this data?"
+                    }
+                ],
+                "max_tokens": 450,
+                "temperature": 0.3,
+            }
         )
-        return resp.choices[0].message.content
+        return resp["choices"][0]["message"]["content"]
     except Exception as exc:
         return f"Could not generate recommendations: {exc}"
 
