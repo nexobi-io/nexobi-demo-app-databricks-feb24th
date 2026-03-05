@@ -255,24 +255,27 @@ def _auto_chart(df: pd.DataFrame) -> bool:
 
 
 # ==========================================================
-# LLM RECOMMENDATIONS (Databricks Model Serving)
+# LLM LAYER (Databricks Model Serving) — enriches every response
 # ==========================================================
 LLM_ENDPOINT = _secret("NEXOBI_LLM_ENDPOINT", "databricks-meta-llama-3-1-70b-instruct")
 
-def _call_recommendations(question: str, genie_text: str, df) -> str:
+def _enrich_with_llm(question: str, genie_text: str, df) -> tuple:
+    """
+    Call LLaMA with the question + Genie data.
+    Returns (enriched_text, is_llm).
+    Falls back to (genie_text, False) if endpoint unavailable.
+    """
+    if not LLM_ENDPOINT:
+        return genie_text, False
     try:
         from databricks.sdk import WorkspaceClient
         w = WorkspaceClient()
 
-        parts = []
-        if question:
-            parts.append(f"User question: {question}")
+        parts = [f"Question: {question}"]
         if genie_text:
             parts.append(f"Data summary: {genie_text}")
         if df is not None and not df.empty:
-            parts.append(f"Data:\n{df.head(20).to_string(index=False)}")
-
-        context = "\n\n".join(parts)
+            parts.append(f"Data:\n{df.head(15).to_string(index=False)}")
 
         resp = w.api_client.do(
             "POST",
@@ -282,25 +285,26 @@ def _call_recommendations(question: str, genie_text: str, df) -> str:
                     {
                         "role": "system",
                         "content": (
-                            "You are a strategic advisor for dental and medical practices. "
-                            "Analyze the practice data provided and give exactly 2-3 specific, "
-                            "actionable recommendations. Be direct and concise. Format each as a "
-                            "numbered action item the practice owner can act on this week or month. "
-                            "Focus on revenue, patient acquisition, and marketing ROI."
+                            "You are an AI advisor for dental and medical practices. "
+                            "Given a question and data, respond with three parts in plain prose — no headers: "
+                            "first a direct answer to the question, "
+                            "then the key insight from the numbers, "
+                            "then one specific actionable recommendation the practice owner can act on this week. "
+                            "Be concise. Maximum 130 words total."
                         )
                     },
                     {
                         "role": "user",
-                        "content": f"{context}\n\nWhat are my top 2-3 actionable priorities based on this data?"
+                        "content": "\n\n".join(parts)
                     }
                 ],
-                "max_tokens": 450,
+                "max_tokens": 300,
                 "temperature": 0.3,
             }
         )
-        return resp["choices"][0]["message"]["content"]
-    except Exception as exc:
-        return f"Could not generate recommendations: {exc}"
+        return resp["choices"][0]["message"]["content"], True
+    except Exception:
+        return genie_text, False
 
 
 # ==========================================================
@@ -365,6 +369,10 @@ run_q = user_q.strip() if ask and user_q.strip() else None
 if run_q:
     with st.spinner("Thinking…"):
         result = _call_genie(run_q)
+        if not result.get("error"):
+            enriched, is_llm = _enrich_with_llm(run_q, result.get("text", ""), result.get("df"))
+            result["text"]   = enriched
+            result["is_llm"] = is_llm
     st.session_state.ai_history.insert(0, {"q": run_q, **result})
     if len(st.session_state.ai_history) > 10:
         st.session_state.ai_history = st.session_state.ai_history[:10]
@@ -398,9 +406,9 @@ for _hidx, item in enumerate(st.session_state.ai_history):
         continue
 
     if text:
-        if item.get("rec"):
+        if item.get("is_llm"):
             st.markdown(
-                '<div class="ai-label-rec">NexoBI Insights</div>'
+                '<div class="ai-label-rec">NexoBI AI · Insights</div>'
                 f'<div class="ai-bubble-rec">{text}</div>',
                 unsafe_allow_html=True)
         else:
@@ -411,23 +419,12 @@ for _hidx, item in enumerate(st.session_state.ai_history):
 
     if df is not None and not df.empty:
         _auto_chart(df)
-        st.dataframe(df, use_container_width=True, hide_index=True)
+        with st.expander("📋 View data", expanded=False):
+            st.dataframe(df, use_container_width=True, hide_index=True)
 
     if sql:
-        with st.expander("View SQL", expanded=False):
+        with st.expander("🔍 View SQL", expanded=False):
             st.code(sql, language="sql")
-
-    if not error:
-        _, _rec_col = st.columns([7, 3])
-        with _rec_col:
-            if st.button("💡 Get recommendations", key=f"rec_{_hidx}", use_container_width=True):
-                with st.spinner("Analyzing…"):
-                    _rec_text = _call_recommendations(q, text, df)
-                st.session_state.ai_history.insert(0, {
-                    "q": "💡 Recommendations based on the data above",
-                    "text": _rec_text, "sql": "", "df": None, "error": None, "rec": True
-                })
-                st.rerun()
 
 # New chat
 if has_history:

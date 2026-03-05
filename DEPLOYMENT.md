@@ -630,7 +630,14 @@ PERMISSIONS
 [ ] Found SP Application ID UUID (Configurations tab)
 [ ] GRANT USE CATALOG ran successfully
 [ ] GRANT USE SCHEMA ran successfully
-[ ] GRANT SELECT on all required tables ran successfully
+[ ] GRANT SELECT on workspace.gold.acquisition
+[ ] GRANT SELECT on workspace.gold.daily_summary
+[ ] GRANT SELECT on workspace.gold.geo_summary
+[ ] GRANT SELECT on workspace.gold.gsc_daily
+[ ] GRANT SELECT on workspace.gold.gsc_pages_seo
+[ ] GRANT SELECT on workspace.gold.gsc_top_queries
+[ ] GRANT SELECT on workspace.gold.page_performance
+[ ] GRANT SELECT on workspace.gold.sessions
 
 VERIFY
 [ ] App loads (no "App not available")
@@ -680,17 +687,40 @@ Find `app-XXXXX nexo-agent` → click it → **Configurations** tab → copy the
 
 ### Step 4 — Grant Table Permissions
 
-In **SQL Editor**, run (replace `<APP_UUID>` and table paths):
+In **SQL Editor**, run (replace `<APP_UUID>` with the Application ID UUID from Step 3):
 
 ```sql
+-- Catalog and schema access
 GRANT USE CATALOG ON CATALOG workspace TO `<APP_UUID>`;
 GRANT USE SCHEMA ON SCHEMA workspace.gold TO `<APP_UUID>`;
-GRANT SELECT ON TABLE workspace.gold.acquisition TO `<APP_UUID>`;
+
+-- All gold layer tables (NexoBI standard)
+GRANT SELECT ON TABLE workspace.gold.acquisition       TO `<APP_UUID>`;
+GRANT SELECT ON TABLE workspace.gold.daily_summary     TO `<APP_UUID>`;
+GRANT SELECT ON TABLE workspace.gold.geo_summary       TO `<APP_UUID>`;
+GRANT SELECT ON TABLE workspace.gold.gsc_daily         TO `<APP_UUID>`;
+GRANT SELECT ON TABLE workspace.gold.gsc_pages_seo     TO `<APP_UUID>`;
+GRANT SELECT ON TABLE workspace.gold.gsc_top_queries   TO `<APP_UUID>`;
+GRANT SELECT ON TABLE workspace.gold.page_performance  TO `<APP_UUID>`;
+GRANT SELECT ON TABLE workspace.gold.sessions          TO `<APP_UUID>`;
 ```
 
 > Use the UUID in backticks. The display name (`app-XXXXX nexo-agent`) does **not** work — only the Application ID UUID works in SQL GRANT statements.
 
-Repeat `GRANT SELECT` for every table the Genie Space queries.
+### Gold Layer Table Reference
+
+These are the standard NexoBI gold layer tables. Add them all to the Genie Space so the agent can answer questions across all data sources.
+
+| Table | What it contains |
+|---|---|
+| `acquisition` | Lead and patient acquisition data — source, channel, conversions |
+| `daily_summary` | Day-level aggregate KPIs — production, leads, appointments |
+| `geo_summary` | Geographic breakdown of performance metrics |
+| `gsc_daily` | Google Search Console daily data — impressions, clicks, CTR |
+| `gsc_pages_seo` | SEO performance by page — rankings, traffic |
+| `gsc_top_queries` | Top search queries driving traffic to the practice |
+| `page_performance` | Website page-level performance metrics |
+| `sessions` | Web session data — visits, bounce rate, engagement |
 
 ### Step 5 — Test
 
@@ -806,7 +836,7 @@ NexoBI Agent = Genie (data layer) + LLM (reasoning layer) + Premium UX (client l
 |---|---|---|
 | **Branding** | NexoBI logo, colors, dark theme | Databricks UI |
 | **Client access** | Direct URL, no Databricks account needed | Requires Databricks login |
-| **Recommendations** | ✅ LLaMA 3.1 70B — strategic advice | ❌ Not available |
+| **Recommendations** | ✅ LLaMA 3.1 70B — built into every response | ❌ Not available |
 | **Auto-charting** | ✅ Detects shape, renders line/bar automatically | Basic native charts |
 | **UI/UX** | Premium dark UI, animations, chat bubbles | Standard Databricks interface |
 | **SQL editing** | Read-only (View SQL expander) | ✅ User can edit and re-run SQL |
@@ -834,19 +864,25 @@ User question
 │  MODEL 1: Databricks Genie (NL2SQL)         │
 │  Purpose: Understand question → write SQL   │
 │  Strength: Precision, schema awareness      │
-│  Output: SQL + query results + summary      │
+│  Output: SQL query + raw data + description │
 │  Tier: Available on all tiers               │
 └─────────────────────────────────────────────┘
-     │  (data returned)
+     │  (data + description passed to LLaMA)
      ▼
 ┌─────────────────────────────────────────────┐
 │  MODEL 2: LLaMA 3.1 70B (General LLM)      │
-│  Purpose: Interpret data → advise           │
-│  Strength: Reasoning, language, strategy   │
-│  Output: 2-3 actionable recommendations    │
+│  Purpose: Interpret data → unified response │
+│  Strength: Reasoning, language, strategy    │
+│  Output: Answer + key insight + action item │
 │  Tier: Requires Databricks Premium+         │
+│  Fallback: Genie description shown instead  │
 └─────────────────────────────────────────────┘
+     │
+     ▼
+Auto-chart (line/bar) + View data + View SQL
 ```
+
+Every question triggers **both models automatically** — no separate button. If LLaMA is unavailable, Genie's description is shown instead (graceful fallback).
 
 | | Genie (Model 1) | LLaMA 3.1 70B (Model 2) |
 |---|---|---|
@@ -855,12 +891,14 @@ User question
 | **What it's good at** | Turning questions into precise SQL | Reasoning, strategy, language |
 | **What it's bad at** | Open-ended advisory reasoning | Precise data retrieval |
 | **Parameters** | Not disclosed | 70 billion |
-| **Context given** | Your schema + question | Question + Genie answer + data table |
-| **Output** | SQL + results + short description | Strategic narrative |
-| **Triggered by** | Every question | Only when user clicks 💡 |
+| **Context given** | Schema + question | Question + Genie description + data table |
+| **Output** | SQL + raw results | Answer + insight + action item (130 words max) |
+| **Triggered by** | Every question | Every question (automatic) |
+| **Fallback** | N/A — always runs | Silently falls back to Genie text |
 | **Cost** | Included in Databricks Apps | Pay-per-token (Databricks Model Serving) |
+| **Response label** | 🟢 "NexoBI AI" | 🟡 "NexoBI AI · Insights" |
 
-This two-model architecture is intentional. **Genie is the best tool for data retrieval. LLaMA is the best tool for advice.** Using one model for both would make both worse.
+**Genie is the best tool for data retrieval. LLaMA is the best tool for advice.** Using one model for both would make both worse. This pipeline combines their strengths automatically on every query.
 
 ---
 
@@ -888,7 +926,7 @@ These improvements don't require code changes — just better Genie Space config
 
 | Action | Impact |
 |---|---|
-| Enable Foundation Model APIs | Unlocks the recommendations button |
+| Enable Foundation Model APIs | Unlocks LLaMA enrichment on every response (auto-activates, no code change) |
 | Tune the system prompt | Make recommendations more specific to dental/medical practice KPIs |
 | Upgrade to LLaMA 3.1 405B | Much stronger reasoning for complex multi-table analyses |
 | Add client context to system prompt | Include practice name, specialty, market — recommendations become hyper-specific |
