@@ -96,10 +96,6 @@ html body [data-testid="stBaseButton-primary"]:hover{box-shadow:0 6px 26px rgba(
 /* Secondary / new chat button */
 .stButton>button{background:rgba(255,255,255,.07)!important;color:#CBD5E1!important;border:1px solid rgba(255,255,255,.12)!important;border-radius:12px!important;font-weight:600!important;}
 
-/* Follow-up chips */
-[data-testid="stMarkdownContainer"]:has(.ai-followup-marker)+[data-testid="stHorizontalBlock"] .stButton>button{background:rgba(0,192,107,.08)!important;border:1px solid rgba(0,192,107,.22)!important;border-radius:999px!important;padding:.18rem .7rem!important;min-height:0!important;height:auto!important;font-size:.68rem!important;font-weight:500!important;color:rgba(255,255,255,.65)!important;white-space:nowrap!important;width:100%!important;}
-[data-testid="stMarkdownContainer"]:has(.ai-followup-marker)+[data-testid="stHorizontalBlock"] .stButton>button:hover{background:rgba(0,192,107,.18)!important;color:#fff!important;}
-
 /* Expander / DataFrame */
 [data-testid="stExpander"]{background:rgba(255,255,255,.05)!important;border:1px solid rgba(255,255,255,.09)!important;border-radius:12px!important;}
 [data-testid="stExpander"] summary{color:#CBD5E1!important;}
@@ -251,27 +247,6 @@ def _auto_chart(df: pd.DataFrame) -> bool:
     return False
 
 
-def _followup_chips(q: str) -> list:
-    q_low = q.lower()
-    pool  = []
-    if any(x in q_low for x in ["revenue", "sales", "production"]):
-        pool += ["Break down production by source", "Production trend last 90 days", "Best day this month?"]
-    if any(x in q_low for x in ["lead", "patient", "appointment"]):
-        pool += ["What's my cost per new patient?", "New patient trend last 90 days"]
-    if any(x in q_low for x in ["google", "facebook", "meta", "source", "campaign"]):
-        pool += ["Which campaign drove the most production?", "Top 5 campaigns by leads"]
-    if any(x in q_low for x in ["treatment", "procedure"]):
-        pool += ["Which treatment drives the most production?", "Top treatments by revenue"]
-    if not pool:
-        pool = ["What drove production this month?", "Which source has the best conversion?", "Show my top campaigns"]
-    seen, chips = set(), []
-    for c in pool:
-        if c not in seen:
-            seen.add(c)
-            chips.append(c)
-        if len(chips) == 3:
-            break
-    return chips
 
 
 # ==========================================================
@@ -383,16 +358,14 @@ for _hidx, item in enumerate(st.session_state.ai_history):
             st.code(sql, language="sql")
 
     if not error:
-        _chips = _followup_chips(q)
-        st.markdown('<div class="ai-followup-marker"></div>', unsafe_allow_html=True)
-        _chip_cols = st.columns(len(_chips))
-        for _ci, (_cc, _chip) in enumerate(zip(_chip_cols, _chips)):
-            with _cc:
-                if st.button(_chip, key=f"chip_{_hidx}_{_ci}", use_container_width=True):
-                    with st.spinner("Thinking…"):
-                        _res = _call_genie(_chip)
-                    st.session_state.ai_history.insert(0, {"q": _chip, **_res})
-                    st.rerun()
+        _, _rec_col = st.columns([7, 3])
+        with _rec_col:
+            if st.button("💡 Get recommendations", key=f"rec_{_hidx}", use_container_width=True):
+                _rec_q = "Based on the data above, give me 2-3 specific, actionable recommendations I should focus on to improve my results."
+                with st.spinner("Thinking…"):
+                    _res = _call_genie(_rec_q)
+                st.session_state.ai_history.insert(0, {"q": _rec_q, **_res})
+                st.rerun()
 
 # New chat
 if has_history:
