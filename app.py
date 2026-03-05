@@ -194,6 +194,63 @@ def _call_genie(question: str) -> dict:
         return {"text": "", "sql": "", "df": None, "error": str(exc)}
 
 
+def _auto_chart(df: pd.DataFrame) -> bool:
+    """Detect data shape and render the best chart. Returns True if a chart was rendered."""
+    if df is None or df.empty or len(df) < 2:
+        return False
+
+    def _to_num(series):
+        return pd.to_numeric(
+            series.astype(str).str.replace(r"[\$,%\s]", "", regex=True).str.replace(",", ""),
+            errors="coerce"
+        )
+
+    cols = list(df.columns)
+
+    # Classify each column as numeric or text
+    numeric_cols, text_cols = [], []
+    for col in cols:
+        converted = _to_num(df[col])
+        (numeric_cols if converted.notna().mean() > 0.6 else text_cols).append(col)
+
+    if not numeric_cols:
+        return False
+
+    date_kw   = ["date", "month", "week", "day", "period", "year", "quarter", "time"]
+    date_cols = [c for c in text_cols if any(k in c.lower() for k in date_kw)]
+    cat_cols  = [c for c in text_cols if c not in date_cols]
+
+    # Build a clean numeric dataframe
+    num_df = pd.DataFrame({col: _to_num(df[col]) for col in numeric_cols})
+
+    # Time series → line chart
+    if date_cols:
+        idx = date_cols[0]
+        chart_df = num_df[numeric_cols[:3]].copy()
+        chart_df.index = df[idx].astype(str)
+        chart_df.index.name = idx
+        st.line_chart(chart_df)
+        return True
+
+    # Category + numeric → bar chart
+    if cat_cols:
+        idx     = cat_cols[0]
+        num_col = numeric_cols[0]
+        chart_df = num_df[[num_col]].copy()
+        chart_df.index = df[idx].astype(str)
+        chart_df.index.name = idx
+        chart_df = chart_df.dropna().sort_values(num_col, ascending=False).head(15)
+        st.bar_chart(chart_df)
+        return True
+
+    # Pure numeric (no labels) → line chart on index
+    if len(numeric_cols) >= 1:
+        st.line_chart(num_df[numeric_cols[:3]])
+        return True
+
+    return False
+
+
 def _followup_chips(q: str) -> list:
     q_low = q.lower()
     pool  = []
@@ -318,6 +375,7 @@ for _hidx, item in enumerate(st.session_state.ai_history):
             unsafe_allow_html=True)
 
     if df is not None and not df.empty:
+        _auto_chart(df)
         st.dataframe(df, use_container_width=True, hide_index=True)
 
     if sql:
