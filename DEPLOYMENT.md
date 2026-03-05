@@ -15,6 +15,8 @@
 7. [Environment Variables Reference](#7-environment-variables-reference)
 8. [Troubleshooting](#8-troubleshooting)
 9. [Security Rules](#9-security-rules)
+10. [NexoBI Agent vs Native Genie — Full Comparison](#10-nexobi-agent-vs-native-genie--full-comparison)
+11. [Taking NexoBI Agent to the Next Level](#11-taking-nexobi-agent-to-the-next-level)
 
 ---
 
@@ -783,6 +785,153 @@ The **💡 Get recommendations** button calls Databricks Model Serving (Foundati
 - Grant the service principal only the tables it needs — minimum access.
 - If a token was accidentally committed: rotate it immediately in **Settings → Developer → Access tokens**, then remove it from git history.
 - The app runs inside the client's Databricks workspace — data never leaves their environment.
+
+---
+
+---
+
+## 10. NexoBI Agent vs Native Genie — Full Comparison
+
+### The Core Difference
+
+Both NexoBI Agent and native Databricks Genie answer questions using the same underlying Genie API. The difference is **what surrounds it**, **who sees it**, and **what happens after the data comes back**.
+
+NexoBI Agent = Genie (data layer) + LLM (reasoning layer) + Premium UX (client layer)
+
+---
+
+### Feature Comparison
+
+| Feature | NexoBI Agent | Native Databricks Genie |
+|---|---|---|
+| **Branding** | NexoBI logo, colors, dark theme | Databricks UI |
+| **Client access** | Direct URL, no Databricks account needed | Requires Databricks login |
+| **Recommendations** | ✅ LLaMA 3.1 70B — strategic advice | ❌ Not available |
+| **Auto-charting** | ✅ Detects shape, renders line/bar automatically | Basic native charts |
+| **UI/UX** | Premium dark UI, animations, chat bubbles | Standard Databricks interface |
+| **SQL editing** | Read-only (View SQL expander) | ✅ User can edit and re-run SQL |
+| **Trusted assets** | ❌ Not exposed | ✅ Pre-validated queries |
+| **Space instructions** | Set in Genie Space (not in app) | ✅ Configurable per space |
+| **Feedback loop** | ❌ Not available | ✅ Thumbs up/down to improve |
+| **Complex joins** | Same (via Genie API) | Same |
+| **Conversation memory** | ✅ Per session (same thread) | ✅ Per session |
+| **White-label** | ✅ Full NexoBI brand | ❌ Always Databricks brand |
+| **Multi-table support** | ✅ Whatever Genie Space has | ✅ Whatever Genie Space has |
+| **Chart types** | Line + Bar (auto-detected) | More native types |
+| **Mobile-friendly** | ✅ Responsive centered layout | Limited |
+
+---
+
+### LLM Comparison — Two Different Models Doing Two Different Jobs
+
+The NexoBI Agent uses **two separate AI models**, not one. They serve completely different purposes.
+
+```
+User question
+     │
+     ▼
+┌─────────────────────────────────────────────┐
+│  MODEL 1: Databricks Genie (NL2SQL)         │
+│  Purpose: Understand question → write SQL   │
+│  Strength: Precision, schema awareness      │
+│  Output: SQL + query results + summary      │
+│  Tier: Available on all tiers               │
+└─────────────────────────────────────────────┘
+     │  (data returned)
+     ▼
+┌─────────────────────────────────────────────┐
+│  MODEL 2: LLaMA 3.1 70B (General LLM)      │
+│  Purpose: Interpret data → advise           │
+│  Strength: Reasoning, language, strategy   │
+│  Output: 2-3 actionable recommendations    │
+│  Tier: Requires Databricks Premium+         │
+└─────────────────────────────────────────────┘
+```
+
+| | Genie (Model 1) | LLaMA 3.1 70B (Model 2) |
+|---|---|---|
+| **Type** | Specialized NL2SQL model | General-purpose LLM |
+| **Made by** | Databricks (proprietary) | Meta (open source, hosted by Databricks) |
+| **What it's good at** | Turning questions into precise SQL | Reasoning, strategy, language |
+| **What it's bad at** | Open-ended advisory reasoning | Precise data retrieval |
+| **Parameters** | Not disclosed | 70 billion |
+| **Context given** | Your schema + question | Question + Genie answer + data table |
+| **Output** | SQL + results + short description | Strategic narrative |
+| **Triggered by** | Every question | Only when user clicks 💡 |
+| **Cost** | Included in Databricks Apps | Pay-per-token (Databricks Model Serving) |
+
+This two-model architecture is intentional. **Genie is the best tool for data retrieval. LLaMA is the best tool for advice.** Using one model for both would make both worse.
+
+---
+
+## 11. Taking NexoBI Agent to the Next Level
+
+The current agent is strong but the ceiling is much higher. Here is the full roadmap, ordered by impact.
+
+### Tier 1 — Data (Highest Impact, Do First)
+
+These improvements don't require code changes — just better Genie Space configuration.
+
+| Action | Impact |
+|---|---|
+| Add all client tables to Genie Space | Every new table = exponentially richer answers |
+| Add Genie Space instructions | Tell Genie how to interpret your data model, terminology, and KPIs |
+| Add trusted assets | Pre-validate the 10 most common queries so they always return correct results |
+| Configure table descriptions | Help Genie understand what each column means |
+| Add sample questions | Teach Genie what good questions look like for this client |
+
+**This alone will make the agent dramatically smarter.** A well-configured Genie Space with 10-15 tables + instructions + trusted assets is what separates a demo from a production agent.
+
+---
+
+### Tier 2 — LLM Quality (High Impact, Requires Premium Tier)
+
+| Action | Impact |
+|---|---|
+| Enable Foundation Model APIs | Unlocks the recommendations button |
+| Tune the system prompt | Make recommendations more specific to dental/medical practice KPIs |
+| Upgrade to LLaMA 3.1 405B | Much stronger reasoning for complex multi-table analyses |
+| Add client context to system prompt | Include practice name, specialty, market — recommendations become hyper-specific |
+
+---
+
+### Tier 3 — App Features (Medium Impact)
+
+| Feature | What it does |
+|---|---|
+| Proactive insights on load | On first open, auto-ask "What are my top 3 KPIs this month?" |
+| Pinned questions | Let clients save their most-asked questions as quick-access buttons |
+| Export to PDF | Download the answer + chart as a one-pager |
+| Scheduled reports | Email a weekly summary automatically |
+| Multi-language | Serve Spanish-speaking practice owners |
+| Voice input | Speak the question instead of typing |
+
+---
+
+### Tier 4 — Architecture (Long-term)
+
+| Upgrade | What it enables |
+|---|---|
+| Replace Genie with direct SQL + LLM | Full control over NL2SQL, no Databricks tier dependency |
+| Add Claude API as LLM layer | Stronger reasoning than LLaMA, better recommendations |
+| Add memory across sessions | Agent remembers previous conversations and KPI trends |
+| Multi-tenant routing | One codebase, one app, routes to each client's Genie Space by login |
+| RAG on unstructured data | Pull insights from notes, PDFs, call transcripts alongside structured data |
+
+---
+
+### The Vision
+
+```
+Today                          Next 6 months                  12 months
+─────────────────────          ─────────────────────          ─────────────────────
+Ask a question                 Ask + get recommendations       Proactive agent
+Get data answer                Multiple tables, rich context   Alerts you without asking
+See a chart                    Voice input                     Cross-client benchmarking
+Click for recs (Premium)       Scheduled reports               Full autonomy
+```
+
+The agent becomes truly powerful when it stops waiting to be asked and starts **surfacing the right insight at the right moment** — a campaign underperforming, a new patient drop, a treatment mix shift. That's the destination.
 
 ---
 
