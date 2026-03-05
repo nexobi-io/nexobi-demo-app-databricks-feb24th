@@ -39,11 +39,6 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif!important;}
 #MainMenu,footer,header{visibility:hidden;}
 .block-container{max-width:720px;padding:1rem 1.5rem 3rem;}
 
-/* Header */
-.nexo-header{display:flex;align-items:center;gap:12px;padding:14px 0 18px;}
-.nexo-brand{font-family:'Plus Jakarta Sans',sans-serif;font-size:1.1rem;font-weight:900;color:#F1F5F9;}
-.nexo-sub{font-size:.75rem;color:#475569;}
-
 /* Keyframes */
 @keyframes floatA{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(28px,-22px) scale(1.08)}}
 @keyframes floatB{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-22px,20px) scale(.94)}}
@@ -51,6 +46,7 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif!important;}
 @keyframes drift1{0%{transform:translate(0,0)}25%{transform:translate(18px,-24px)}50%{transform:translate(-12px,-40px)}75%{transform:translate(22px,-14px)}100%{transform:translate(0,0)}}
 @keyframes drift2{0%{transform:translate(0,0)}33%{transform:translate(-20px,14px)}66%{transform:translate(12px,28px)}100%{transform:translate(0,0)}}
 @keyframes twinkle{0%,100%{opacity:.25;transform:scale(1)}50%{opacity:.75;transform:scale(1.5)}}
+@keyframes shimmer{0%{background-position:-200% center}100%{background-position:200% center}}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes inputGlow{0%,100%{box-shadow:0 0 0 0 rgba(0,192,107,0)}50%{box-shadow:0 0 22px 4px rgba(0,192,107,.16)}}
 
@@ -64,6 +60,12 @@ html,body,[class*="css"]{font-family:'DM Sans',sans-serif!important;}
 .page-orbs .pt2{width:2px;height:2px;background:rgba(0,192,107,.5);top:35%;left:72%;animation:drift2 11s ease-in-out infinite,twinkle 4.1s ease-in-out .8s infinite;}
 .page-orbs .pt3{width:4px;height:4px;background:rgba(0,212,120,.6);top:62%;left:28%;animation:drift1 8s ease-in-out infinite,twinkle 2.8s ease-in-out 1.5s infinite;}
 .page-orbs .pt4{width:2px;height:2px;background:rgba(0,192,107,.4);top:78%;left:58%;animation:drift2 14s ease-in-out infinite,twinkle 5s ease-in-out infinite;}
+
+/* Hero */
+.ai-hero-wrap{text-align:center;padding:3rem 1rem 2rem;}
+.ai-catch{font-family:'Plus Jakarta Sans',sans-serif;font-size:3rem;font-weight:900;color:#FFFFFF;line-height:1.08;margin-bottom:.6rem;}
+.ai-catch-hi{background:linear-gradient(120deg,#00C06B 0%,#38BDF8 40%,#00C06B 80%);background-size:250% auto;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shimmer 4s linear infinite;}
+.ai-catch-sub{font-size:.85rem;color:rgba(255,255,255,.45);max-width:400px;margin:0 auto 2rem;}
 
 /* Chat bubbles */
 .ai-bubble-user{display:flex;justify-content:flex-end;margin:.8rem 0 .15rem;animation:slideUp .18s ease-out;}
@@ -108,18 +110,6 @@ st.markdown("""
   <div class="op1"></div><div class="op2"></div><div class="op3"></div>
   <div class="pt pt1"></div><div class="pt pt2"></div>
   <div class="pt pt3"></div><div class="pt pt4"></div>
-</div>
-""", unsafe_allow_html=True)
-
-# Header
-st.markdown("""
-<div class="nexo-header">
-  <img src="https://images.squarespace-cdn.com/content/v1/68daa6f79c8c695a65a1d1bd/1759160060457-MMX5Q30RNSVGDEWNRL0S/nexobi_logo_transparent_background.png?format=1500w"
-       width="34" style="border-radius:8px;" alt="NexoBI">
-  <div>
-    <div class="nexo-brand">NexoBI</div>
-    <div class="nexo-sub">Attribution Intelligence</div>
-  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -305,6 +295,14 @@ if "ai_nonce"              not in st.session_state: st.session_state.ai_nonce = 
 if "genie_conversation_id" not in st.session_state: st.session_state.genie_conversation_id = None
 
 has_history = len(st.session_state.ai_history) > 0
+
+if not has_history:
+    st.markdown("""
+<div class="ai-hero-wrap">
+  <div class="ai-catch">Ask anything about<br><span class="ai-catch-hi">your practice.</span></div>
+  <div class="ai-catch-sub">Get straight answers from your data. No dashboards needed.</div>
+</div>
+""", unsafe_allow_html=True)
 
 # Input row
 _icol, _scol = st.columns([11, 1])
