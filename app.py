@@ -167,7 +167,12 @@ def _call_genie(question: str) -> dict:
                 cols  = [c["name"] for c in rdata.get("manifest", {}).get("schema", {}).get("columns", [])]
                 rows  = [r.get("values", []) for r in rdata.get("result", {}).get("data_typed_array", [])]
                 if cols and rows:
-                    df = pd.DataFrame([[v.get("str", "") for v in row] for row in rows], columns=cols)
+                    def _cell(v):
+                        for k in ("str", "long", "double", "bool", "int", "float"):
+                            if k in v:
+                                return str(v[k])
+                        return next((str(x) for x in v.values() if x is not None), "")
+                    df = pd.DataFrame([[_cell(v) for v in row] for row in rows], columns=cols)
             except Exception:
                 pass
 
